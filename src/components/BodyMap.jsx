@@ -1,87 +1,87 @@
 import { useState } from 'react'
-import { BODY_SHAPES, VIEW_BOX } from '../data/bodyShapes'
+import { SILHOUETTE, MARKERS, VIEW_BOX } from '../data/bodyShapes'
 import { getAreaNome } from '../data/painAreas'
 
+const renderSilhouetteShape = (shape, key) => {
+  const common = { key, fill: '#B8C6CB', stroke: 'none' }
+  if (shape.shape === 'ellipse') {
+    return <ellipse cx={shape.cx} cy={shape.cy} rx={shape.rx} ry={shape.ry} {...common} />
+  }
+  if (shape.shape === 'rect') {
+    return <rect x={shape.x} y={shape.y} width={shape.w} height={shape.h} rx={shape.rx} {...common} />
+  }
+  return <path d={shape.d} {...common} />
+}
+
 /**
- * Mapa corporal clicável (frente ou verso).
+ * Mapa corporal: silhueta humana ilustrativa + marcadores circulares
+ * clicáveis sobre as 10 regiões do formulário.
  * props:
- *  - view: 'frente' | 'verso'
- *  - selected: Set<number> com os códigos de área selecionados
+ *  - selected: Set<number>
  *  - onToggle: (codigo) => void
  */
-export default function BodyMap({ view, selected, onToggle }) {
+export default function BodyMap({ selected, onToggle }) {
   const [pings, setPings] = useState([])
   const [hovered, setHovered] = useState(null)
-  const shapes = BODY_SHAPES[view]
 
-  const center = (shape) =>
-    shape.shape === 'circle' || shape.shape === 'ellipse'
-      ? { x: shape.cx, y: shape.cy }
-      : { x: shape.x + shape.w / 2, y: shape.y + shape.h / 2 }
-
-  const handleClick = (shape) => {
-    if (shape.codigo == null) return
-    const { x, y } = center(shape)
-    const id = `${shape.codigo}-${Date.now()}-${Math.random()}`
-    setPings((p) => [...p, { id, x, y }])
+  const handleClick = (marker) => {
+    const id = `${marker.codigo}-${Date.now()}-${Math.random()}`
+    setPings((p) => [...p, { id, x: marker.cx, y: marker.cy }])
     setTimeout(() => setPings((p) => p.filter((ping) => ping.id !== id)), 900)
-    onToggle(shape.codigo)
+    onToggle(marker.codigo)
   }
 
-  const renderShape = (shape, i) => {
-    const isSelected = shape.codigo != null && selected.has(shape.codigo)
-    const isHovered = shape.codigo != null && hovered === shape.codigo
-    const interactive = shape.codigo != null
+  const renderMarker = (marker, i) => {
+    const isSelected = selected.has(marker.codigo)
+    const isHovered = hovered === `${marker.cx}-${marker.cy}`
+    const fill = isSelected ? '#E8714A' : isHovered ? '#CFE6FB' : '#FFFFFF'
+    const stroke = isSelected ? '#B3492B' : '#4090D1'
 
-    const fill = !interactive
-      ? '#E4E9E8'
-      : isSelected
-      ? '#E8714A'
-      : isHovered
-      ? '#CFE6E4'
-      : '#DCE8E7'
-
-    const common = {
-      key: i,
-      fill,
-      stroke: interactive ? (isSelected ? '#B3492B' : '#7FB6B3') : '#CBD5D3',
-      strokeWidth: isSelected ? 2 : 1,
-      className: interactive
-        ? 'transition-colors duration-150 cursor-pointer'
-        : '',
-      onClick: () => handleClick(shape),
-      onMouseEnter: () => interactive && setHovered(shape.codigo),
-      onMouseLeave: () => interactive && setHovered(null),
-      role: interactive ? 'button' : undefined,
-      tabIndex: interactive ? 0 : undefined,
-      'aria-pressed': interactive ? isSelected : undefined,
-      'aria-label': interactive ? getAreaNome(shape.codigo) : undefined,
-      onKeyDown: interactive
-        ? (e) => {
-            if (e.key === 'Enter' || e.key === ' ') {
-              e.preventDefault()
-              handleClick(shape)
-            }
+    return (
+      <circle
+        key={i}
+        cx={marker.cx}
+        cy={marker.cy}
+        r={marker.r}
+        fill={fill}
+        stroke={stroke}
+        strokeWidth={isSelected ? 2.5 : 2}
+        className="transition-colors duration-150 cursor-pointer"
+        onClick={() => handleClick(marker)}
+        onMouseEnter={() => setHovered(`${marker.cx}-${marker.cy}`)}
+        onMouseLeave={() => setHovered(null)}
+        role="button"
+        tabIndex={0}
+        aria-pressed={isSelected}
+        aria-label={getAreaNome(marker.codigo)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault()
+            handleClick(marker)
           }
-        : undefined
-    }
-
-    if (shape.shape === 'rect') {
-      return <rect x={shape.x} y={shape.y} width={shape.w} height={shape.h} rx={shape.rx} {...common} />
-    }
-    if (shape.shape === 'circle') {
-      return <circle cx={shape.cx} cy={shape.cy} r={shape.r} {...common} />
-    }
-    return <ellipse cx={shape.cx} cy={shape.cy} rx={shape.rx} ry={shape.ry} {...common} />
+        }}
+      />
+    )
   }
 
   return (
     <svg
       viewBox={VIEW_BOX}
       className="w-full h-full max-h-[70vh] mx-auto select-none touch-manipulation"
-      aria-label={`Diagrama do corpo humano, vista ${view === 'frente' ? 'frontal' : 'posterior'}`}
+      aria-label="Diagrama do corpo humano"
     >
-      {shapes.map(renderShape)}
+      {/* Silhueta: centro (não espelhado) */}
+      {SILHOUETTE.center.map((s, i) => renderSilhouetteShape(s, `c-${i}`))}
+      {/* Silhueta: lado esquerdo */}
+      {SILHOUETTE.left.map((s, i) => renderSilhouetteShape(s, `l-${i}`))}
+      {/* Silhueta: lado direito (espelhado) */}
+      <g transform="translate(240,0) scale(-1,1)">
+        {SILHOUETTE.left.map((s, i) => renderSilhouetteShape(s, `r-${i}`))}
+      </g>
+
+      {/* Marcadores clicáveis */}
+      {MARKERS.map(renderMarker)}
+
       {pings.map((p) => (
         <circle
           key={p.id}
