@@ -106,9 +106,7 @@ export default function WorkerForm() {
     <div className="min-h-screen bg-canvas py-8 px-4">
       <div className="max-w-2xl mx-auto">
         <header className="text-center mb-8">
-          <p className="font-display font-bold tracking-widest text-teal-700 text-xs uppercase mb-2">
-            Universo Wellness
-          </p>
+          <img src="/logo-universo-wellness.png" alt="Universo Wellness" className="h-7 mx-auto mb-3" />
           <h1 className="font-display font-extrabold text-3xl sm:text-4xl text-ink">Sintomatologia Dolorosa</h1>
           <p className="text-muted mt-2">Toque no corpo para indicar onde você sente desconforto hoje.</p>
         </header>

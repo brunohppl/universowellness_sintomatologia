@@ -10,10 +10,10 @@ export default function SetorChart({ data }) {
           <XAxis dataKey="setor" tick={{ fill: '#1F2A2E', fontSize: 12 }} interval={0} angle={-20} textAnchor="end" height={60} />
           <YAxis allowDecimals={false} tick={{ fill: '#64706F', fontSize: 12 }} />
           <Tooltip
-            cursor={{ fill: '#EAF4F3' }}
-            contentStyle={{ borderRadius: 12, border: '1px solid #CFE6E4', fontFamily: 'Inter' }}
+            cursor={{ fill: '#EAF4FD' }}
+            contentStyle={{ borderRadius: 12, border: '1px solid #CFE6FB', fontFamily: 'Inter' }}
           />
-          <Bar dataKey="total" fill="#2D8B8F" radius={[8, 8, 0, 0]} maxBarSize={48} />
+          <Bar dataKey="total" fill="#2C6FA8" radius={[8, 8, 0, 0]} maxBarSize={48} />
         </BarChart>
       </ResponsiveContainer>
     </div>

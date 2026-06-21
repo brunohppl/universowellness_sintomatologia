@@ -15,8 +15,8 @@ export default function AreaFrequencyChart({ data }) {
             tick={{ fill: '#1F2A2E', fontSize: 12 }}
           />
           <Tooltip
-            cursor={{ fill: '#EAF4F3' }}
-            contentStyle={{ borderRadius: 12, border: '1px solid #CFE6E4', fontFamily: 'Inter' }}
+            cursor={{ fill: '#EAF4FD' }}
+            contentStyle={{ borderRadius: 12, border: '1px solid #CFE6FB', fontFamily: 'Inter' }}
           />
           <Bar dataKey="total" fill="#E8714A" radius={[0, 8, 8, 0]} maxBarSize={28} />
         </BarChart>

@@ -127,7 +127,7 @@ export default function AdminDashboard() {
     <div className="min-h-screen bg-canvas">
       <header className="bg-white border-b border-teal-100 px-4 sm:px-8 py-4 flex items-center justify-between sticky top-0 z-10">
         <div>
-          <p className="font-display font-bold tracking-widest text-teal-700 text-xs uppercase">Universo Wellness</p>
+          <img src="/logo-universo-wellness.png" alt="Universo Wellness" className="h-6 mb-1" />
           <h1 className="font-display font-extrabold text-xl text-ink">Painel de Sintomatologia</h1>
         </div>
         <div className="flex items-center gap-3">

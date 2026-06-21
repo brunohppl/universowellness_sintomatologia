@@ -21,7 +21,7 @@ input:focus-visible,
 select:focus-visible,
 textarea:focus-visible,
 [tabindex]:focus-visible {
-  outline: 2px solid #2D8B8F;
+  outline: 2px solid #4090D1;
   outline-offset: 2px;
   border-radius: 4px;
 }
@@ -39,6 +39,6 @@ textarea:focus-visible,
   width: 6px;
 }
 .scrollbar-thin::-webkit-scrollbar-thumb {
-  background: #CFE6E4;
+  background: #CFE6FB;
   border-radius: 999px;
 }

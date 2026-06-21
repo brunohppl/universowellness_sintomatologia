@@ -26,9 +26,7 @@ export default function AdminLogin() {
   return (
     <div className="min-h-screen grid place-items-center bg-canvas px-4">
       <div className="bg-white rounded-3xl shadow-card p-8 w-full max-w-sm">
-        <p className="font-display font-bold tracking-widest text-teal-700 text-xs uppercase mb-2 text-center">
-          Universo Wellness
-        </p>
+        <img src="/logo-universo-wellness.png" alt="Universo Wellness" className="h-7 mx-auto mb-4" />
         <h1 className="font-display font-extrabold text-2xl text-ink text-center mb-6">Painel da equipe</h1>
 
         <form onSubmit={handleSubmit} className="space-y-4">

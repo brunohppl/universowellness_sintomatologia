@@ -1,40 +1,15 @@
-import { useState } from 'react'
 import BodyMap from './BodyMap'
 import { AREAS_DOR, getAreaNome } from '../data/painAreas'
 
 export default function BodyMapSelector({ selected, onToggle }) {
-  const [view, setView] = useState('frente')
-
   return (
     <div>
-      <div className="flex items-center justify-center gap-2 mb-4" role="tablist" aria-label="Vista do corpo">
-        {[
-          { key: 'frente', label: 'Frente' },
-          { key: 'verso', label: 'Verso' }
-        ].map((tab) => (
-          <button
-            key={tab.key}
-            type="button"
-            role="tab"
-            aria-selected={view === tab.key}
-            onClick={() => setView(tab.key)}
-            className={`px-5 py-2 rounded-full font-display font-semibold text-sm transition-colors ${
-              view === tab.key
-                ? 'bg-teal-700 text-white shadow-card'
-                : 'bg-white text-muted border border-teal-100 hover:bg-teal-50'
-            }`}
-          >
-            {tab.label}
-          </button>
-        ))}
-      </div>
-
       <div className="bg-white rounded-3xl shadow-card p-4 sm:p-6">
-        <BodyMap view={view} selected={selected} onToggle={onToggle} />
+        <BodyMap selected={selected} onToggle={onToggle} />
       </div>
 
       <p className="text-center text-sm text-muted mt-3">
-        Toque nas áreas do corpo onde sente desconforto. Você pode escolher mais de uma área, e alternar entre frente e verso.
+        Toque nas áreas do corpo onde sente desconforto. Você pode escolher mais de uma área.
       </p>
 
       <div className="mt-5">
