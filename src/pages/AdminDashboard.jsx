@@ -4,6 +4,8 @@ import { supabase } from '../lib/supabaseClient'
 import { useAuth } from '../lib/useAuth'
 import { AREAS_DOR, getAreaNome } from '../data/painAreas'
 import { exportSubmissionsToCsv } from '../lib/csv'
+import { gerarRelatorioPdf } from '../lib/pdfReport'
+import { listarEmpresas, listarFiliaisPorEmpresa } from '../lib/empresas'
 import StatCard from '../components/StatCard'
 import AreaFrequencyChart from '../components/AreaFrequencyChart'
 import SetorChart from '../components/SetorChart'
@@ -24,6 +26,7 @@ export default function AdminDashboard() {
   const [rows, setRows] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [gerandoPdf, setGerandoPdf] = useState(false)
 
   const [dataInicio, setDataInicio] = useState(isoDaysAgo(30))
   const [dataFim, setDataFim] = useState(todayISO())
@@ -32,21 +35,44 @@ export default function AdminDashboard() {
   const [busca, setBusca] = useState('')
   const [pagina, setPagina] = useState(1)
 
+  const [empresas, setEmpresas] = useState([])
+  const [empresaFiltro, setEmpresaFiltro] = useState('todos')
+  const [filiaisDisponiveis, setFiliaisDisponiveis] = useState([])
+  const [filialFiltro, setFilialFiltro] = useState('todas')
+
   useEffect(() => {
     if (session === null) navigate('/admin/login')
   }, [session, navigate])
+
+  useEffect(() => {
+    if (session) listarEmpresas().then(setEmpresas).catch(() => {})
+  }, [session])
+
+  useEffect(() => {
+    setFilialFiltro('todas')
+    if (empresaFiltro === 'todos') {
+      setFiliaisDisponiveis([])
+      return
+    }
+    listarFiliaisPorEmpresa(empresaFiltro).then(setFiliaisDisponiveis).catch(() => setFiliaisDisponiveis([]))
+  }, [empresaFiltro])
 
   useEffect(() => {
     let ativo = true
     async function carregar() {
       setLoading(true)
       setError('')
-      const { data, error: err } = await supabase
+      let query = supabase
         .from('submissions')
-        .select('*')
+        .select('*, empresas(nome), filiais(nome)')
         .gte('data_registro', dataInicio)
         .lte('data_registro', dataFim)
         .order('data_registro', { ascending: false })
+
+      if (empresaFiltro !== 'todos') query = query.eq('empresa_id', empresaFiltro)
+      if (filialFiltro !== 'todas') query = query.eq('filial_id', filialFiltro)
+
+      const { data, error: err } = await query
       if (!ativo) return
       if (err) {
         setError('Não foi possível carregar os dados. Verifique sua conexão e permissões no Supabase.')
@@ -60,12 +86,9 @@ export default function AdminDashboard() {
     return () => {
       ativo = false
     }
-  }, [session, dataInicio, dataFim])
+  }, [session, dataInicio, dataFim, empresaFiltro, filialFiltro])
 
-  const setoresDisponiveis = useMemo(
-    () => Array.from(new Set(rows.map((r) => r.setor))).sort(),
-    [rows]
-  )
+  const setoresDisponiveis = useMemo(() => Array.from(new Set(rows.map((r) => r.setor))).sort(), [rows])
 
   const filtradas = useMemo(() => {
     return rows.filter((r) => {
@@ -91,11 +114,17 @@ export default function AdminDashboard() {
     const setorContagem = {}
     filtradas.forEach((r) => (setorContagem[r.setor] = (setorContagem[r.setor] ?? 0) + 1))
     const setorTopEntry = Object.entries(setorContagem).sort((a, b) => b[1] - a[1])[0]
+    const areaTopNome = areaTopEntry ? getAreaNome(Number(areaTopEntry[0])) : null
+    const setorTopNome = setorTopEntry ? setorTopEntry[0] : null
     return {
       total,
       semDor,
-      areaTop: areaTopEntry ? `${getAreaNome(Number(areaTopEntry[0]))} (${areaTopEntry[1]})` : '—',
-      setorTop: setorTopEntry ? `${setorTopEntry[0]} (${setorTopEntry[1]})` : '—',
+      areaTopNome,
+      areaTopCount: areaTopEntry ? areaTopEntry[1] : 0,
+      setorTopNome,
+      setorTopCount: setorTopEntry ? setorTopEntry[1] : 0,
+      areaTop: areaTopNome ? `${areaTopNome} (${areaTopEntry[1]})` : '—',
+      setorTop: setorTopNome ? `${setorTopNome} (${setorTopEntry[1]})` : '—',
       contagem,
       setorContagem
     }
@@ -121,6 +150,27 @@ export default function AdminDashboard() {
   const totalPaginas = Math.max(1, Math.ceil(filtradas.length / PAGE_SIZE))
   const paginaAtual = filtradas.slice((pagina - 1) * PAGE_SIZE, pagina * PAGE_SIZE)
 
+  const empresaNome = empresaFiltro === 'todos' ? null : empresas.find((e) => e.id === empresaFiltro)?.nome
+  const filialNome = filialFiltro === 'todas' ? null : filiaisDisponiveis.find((f) => f.id === filialFiltro)?.nome
+  const areaNome = areaFiltro === 'todas' ? null : getAreaNome(Number(areaFiltro))
+  const setorNome = setorFiltro === 'todos' ? null : setorFiltro
+
+  const handleExportarPdf = async () => {
+    setGerandoPdf(true)
+    try {
+      await gerarRelatorioPdf({
+        filtros: { dataInicio, dataFim, empresaNome, filialNome, setorNome, areaNome },
+        rows: filtradas,
+        dadosAreaChart,
+        dadosSetorChart,
+        stats
+      })
+    } catch (e) {
+      setError('Não foi possível gerar o PDF agora. Tente novamente.')
+    }
+    setGerandoPdf(false)
+  }
+
   if (!session) return null
 
   return (
@@ -131,6 +181,9 @@ export default function AdminDashboard() {
           <h1 className="font-display font-extrabold text-xl text-ink">Painel de Sintomatologia</h1>
         </div>
         <div className="flex items-center gap-3">
+          <a href="/admin/clientes" className="text-sm text-teal-700 underline hidden sm:inline">
+            Clientes
+          </a>
           <a href="/" className="text-sm text-teal-700 underline hidden sm:inline">
             Ir para o formulário
           </a>
@@ -145,7 +198,7 @@ export default function AdminDashboard() {
 
       <main className="px-4 sm:px-8 py-6 max-w-7xl mx-auto">
         {/* Filtros */}
-        <div className="bg-white rounded-2xl shadow-card p-4 sm:p-5 mb-6 grid sm:grid-cols-5 gap-3">
+        <div className="bg-white rounded-2xl shadow-card p-4 sm:p-5 mb-6 grid sm:grid-cols-3 lg:grid-cols-7 gap-3">
           <div>
             <label className="block text-xs font-semibold text-muted mb-1">De</label>
             <input
@@ -163,6 +216,37 @@ export default function AdminDashboard() {
               onChange={(e) => setDataFim(e.target.value)}
               className="w-full rounded-xl border border-teal-100 px-3 py-2 text-sm outline-none focus:border-teal-500"
             />
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-muted mb-1">Cliente</label>
+            <select
+              value={empresaFiltro}
+              onChange={(e) => setEmpresaFiltro(e.target.value)}
+              className="w-full rounded-xl border border-teal-100 px-3 py-2 text-sm outline-none focus:border-teal-500"
+            >
+              <option value="todos">Todos</option>
+              {empresas.map((e) => (
+                <option key={e.id} value={e.id}>
+                  {e.nome}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-muted mb-1">Filial</label>
+            <select
+              value={filialFiltro}
+              onChange={(e) => setFilialFiltro(e.target.value)}
+              disabled={empresaFiltro === 'todos'}
+              className="w-full rounded-xl border border-teal-100 px-3 py-2 text-sm outline-none focus:border-teal-500 disabled:opacity-50"
+            >
+              <option value="todas">Todas</option>
+              {filiaisDisponiveis.map((f) => (
+                <option key={f.id} value={f.id}>
+                  {f.nome}
+                </option>
+              ))}
+            </select>
           </div>
           <div>
             <label className="block text-xs font-semibold text-muted mb-1">Setor</label>
@@ -227,15 +311,24 @@ export default function AdminDashboard() {
 
         {/* Tabela */}
         <div className="bg-white rounded-2xl shadow-card overflow-hidden">
-          <div className="flex items-center justify-between p-4 sm:p-5 border-b border-teal-50">
+          <div className="flex items-center justify-between p-4 sm:p-5 border-b border-teal-50 flex-wrap gap-2">
             <h3 className="font-display font-semibold text-ink">Registros detalhados</h3>
-            <button
-              onClick={() => exportSubmissionsToCsv(filtradas, `sintomatologia_${dataInicio}_a_${dataFim}.csv`)}
-              disabled={filtradas.length === 0}
-              className="text-sm font-semibold bg-teal-700 hover:bg-teal-600 disabled:opacity-50 text-white px-4 py-2 rounded-xl transition-colors"
-            >
-              Exportar CSV
-            </button>
+            <div className="flex gap-2">
+              <button
+                onClick={handleExportarPdf}
+                disabled={filtradas.length === 0 || gerandoPdf}
+                className="text-sm font-semibold bg-coral-500 hover:bg-coral-600 disabled:opacity-50 text-white px-4 py-2 rounded-xl transition-colors"
+              >
+                {gerandoPdf ? 'Gerando PDF...' : 'Exportar relatório (PDF)'}
+              </button>
+              <button
+                onClick={() => exportSubmissionsToCsv(filtradas, `sintomatologia_${dataInicio}_a_${dataFim}.csv`)}
+                disabled={filtradas.length === 0}
+                className="text-sm font-semibold bg-teal-700 hover:bg-teal-600 disabled:opacity-50 text-white px-4 py-2 rounded-xl transition-colors"
+              >
+                Exportar CSV
+              </button>
+            </div>
           </div>
 
           <div className="overflow-x-auto scrollbar-thin">
@@ -243,6 +336,7 @@ export default function AdminDashboard() {
               <thead>
                 <tr className="text-left text-muted border-b border-teal-50">
                   <th className="px-4 py-3 font-semibold">Nome</th>
+                  <th className="px-4 py-3 font-semibold">Cliente</th>
                   <th className="px-4 py-3 font-semibold">Setor</th>
                   <th className="px-4 py-3 font-semibold">Matrícula</th>
                   <th className="px-4 py-3 font-semibold">Data</th>
@@ -253,13 +347,13 @@ export default function AdminDashboard() {
               <tbody>
                 {loading ? (
                   <tr>
-                    <td colSpan={6} className="px-4 py-8 text-center text-muted">
+                    <td colSpan={7} className="px-4 py-8 text-center text-muted">
                       Carregando...
                     </td>
                   </tr>
                 ) : paginaAtual.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="px-4 py-8 text-center text-muted">
+                    <td colSpan={7} className="px-4 py-8 text-center text-muted">
                       Nenhum registro encontrado para os filtros selecionados.
                     </td>
                   </tr>
@@ -267,6 +361,7 @@ export default function AdminDashboard() {
                   paginaAtual.map((r) => (
                     <tr key={r.id} className="border-b border-teal-50/60 hover:bg-teal-50/40">
                       <td className="px-4 py-3 font-medium text-ink whitespace-nowrap">{r.nome}</td>
+                      <td className="px-4 py-3 whitespace-nowrap text-muted">{r.empresas?.nome ?? '—'}</td>
                       <td className="px-4 py-3 whitespace-nowrap">{r.setor}</td>
                       <td className="px-4 py-3 font-mono text-xs">{r.matricula || '—'}</td>
                       <td className="px-4 py-3 whitespace-nowrap">

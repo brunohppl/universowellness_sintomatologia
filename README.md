@@ -19,6 +19,10 @@ Two routes:
 
 ## 1. Set up Supabase (one-time)
 
+> **Already have this project running from before?** The SQL below is safe to run again —
+> it only adds what's new (the `empresas`/`filiais`/`setores` tables and two columns on
+> `submissions`) without touching your existing data. Just paste the updated file in again.
+
 1. Create a free project at [supabase.com](https://supabase.com).
 2. Open **SQL Editor** → New query → paste the entire contents of
    [`supabase/schema.sql`](./supabase/schema.sql) → **Run**.
@@ -89,7 +93,15 @@ Each submission is one row in `submissions`:
 | `data_registro`  | Date of the report                                                     |
 | `areas_dor`      | Array of integers 1–10 (see below) — empty array means "no discomfort" |
 | `observacoes`    | Optional free-text note                                                |
+| `empresa_id`     | Which client this came from (null = generic `/` test form)             |
+| `filial_id`      | Which branch this came from (null = generic `/` test form)             |
 | `created_at`     | Submission timestamp (set automatically)                               |
+
+Three more tables support multi-client setup, all managed through `/admin/clientes`:
+
+- **`empresas`** — client companies (Coca-Cola, Gillette, ...), with an optional logo URL.
+- **`filiais`** — each client's branches/locations, each with a unique `slug` that becomes its public link (`/f/<slug>`).
+- **`setores`** — the department list, scoped per client, replacing the old hardcoded suggestions.
 
 The 10 area codes match the original paper form exactly, defined in
 `src/data/painAreas.js`:
@@ -104,14 +116,34 @@ maps to one of those 10 codes, so the visual regions and the stored data always 
 
 ## Customizing
 
-- **Department list:** edit `SETORES_SUGERIDOS` in `src/pages/WorkerForm.jsx`. It's just
-  autocomplete suggestions — workers can type any department even if it's not listed.
+- **Clients, branches, departments:** now managed entirely through `/admin/clientes` — no code changes needed.
 - **Colors/branding:** edit the `teal` / `coral` / `leaf` palette in `tailwind.config.js`.
-- **Body diagram shapes:** tweak coordinates in `src/data/bodyShapes.js` (viewBox is
-  `0 0 240 520`, shared by both front and back views).
+- **Body diagram:** the silhouette and tap markers live in `src/data/bodyShapes.js`.
 - **More staff accounts:** add them anytime in Supabase Authentication — no app changes needed.
 
-## Backup access to the data
+## Setting up clients, branches, and department lists
+
+Since this app now serves multiple client companies (not just one factory), there's a setup step before workers can use it:
+
+1. Log into `/admin`, then click **Clientes** in the header.
+2. Click **Criar cliente** and add a company (e.g. "Coca-Cola"). The logo field takes a direct image URL — there's no upload yet (see "Ideas for later" below).
+3. Click into that client to expand it, then add at least one **filial** (branch/location) and a few **setores** (departments) — these replace the old hardcoded department suggestions, and are now fully editable per client.
+4. Each filial gets a unique link shown right there (`yoursite.com/f/coca-cola-sao-paulo`) — click **Copiar link** and that's what you put on that branch's tablet/kiosk. Each branch's form automatically shows that client's logo and department list.
+
+The plain `/` link still works as a generic/test form (original Universo Wellness branding, free-text department field) — useful for testing without needing a client set up, and it keeps any bookmarks/links you were already using before this update.
+
+If you remove a client or branch that already has submitted records, the database will refuse the delete (rather than silently orphaning that data) — you'll see a message explaining that instead of an error.
+
+## Reports
+
+The dashboard now has two export options side by side:
+
+- **Exportar CSV** — same as before, now with added Cliente/Filial columns.
+- **Exportar relatório (PDF)** — a formatted report with the applied filters listed, summary stat cards, two redrawn bar charts (not a screenshot — drawn directly, so they stay crisp and don't depend on fonts rendering correctly in a captured image), a short written summary auto-generated from the real numbers (no AI text generation involved — it's a template filling in your actual stats, so it can't say anything not backed by the data), and the detailed table (first 200 rows; CSV remains the way to get everything beyond that).
+
+Both respect whatever filters are currently set on the dashboard (date range, client, branch, department, area).
+
+
 
 Per your request, staff can also browse and export data directly in Supabase: log into
 your project, go to **Table Editor → submissions**. The dashboard in this app links there
@@ -119,7 +151,10 @@ too, in case anyone needs to cross-reference data, build a custom view, or run S
 
 ## Ideas for later (not built yet)
 
+- Logo upload for clients (currently a pasted image URL) via Supabase Storage
+- Per-client admin logins (today, only Universo Wellness staff manage clients/branches/departments — by design)
 - Severity/intensity scale per area (e.g. 1–5) instead of just yes/no
+- An AI-generated narrative summary as an alternative to the template-based one in the PDF (would need a small backend function holding an API key, since that can't run safely in the browser)
+- Scheduled email digest per client
 - Kiosk/tablet "lock" mode so workers can't navigate away from the form
-- Multi-language toggle, if the factory has non-Portuguese-speaking staff
-- Scheduled email summary to HR (e.g. weekly digest of new high-risk reports)
+- Multi-language toggle, if a branch has non-Portuguese-speaking staff

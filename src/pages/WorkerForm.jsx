@@ -1,8 +1,10 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { useParams } from 'react-router-dom'
 import BodyMapSelector from '../components/BodyMapSelector'
 import { supabase } from '../lib/supabaseClient'
+import { buscarFilialPorSlug } from '../lib/empresas'
 
-const SETORES_SUGERIDOS = [
+const SETORES_SUGERIDOS_PADRAO = [
   'Produção',
   'Montagem',
   'Embalagem',
@@ -16,6 +18,40 @@ const SETORES_SUGERIDOS = [
 const todayISO = () => new Date().toISOString().slice(0, 10)
 
 export default function WorkerForm() {
+  const { slug } = useParams()
+
+  // Contexto do cliente/filial (carregado a partir do link, se houver slug)
+  const [carregandoContexto, setCarregandoContexto] = useState(Boolean(slug))
+  const [contextoInvalido, setContextoInvalido] = useState(false)
+  const [empresa, setEmpresa] = useState(null)
+  const [filial, setFilial] = useState(null)
+  const [setoresCliente, setSetoresCliente] = useState([])
+
+  useEffect(() => {
+    if (!slug) return
+    let ativo = true
+    buscarFilialPorSlug(slug)
+      .then((resultado) => {
+        if (!ativo) return
+        if (!resultado) {
+          setContextoInvalido(true)
+        } else {
+          setEmpresa(resultado.empresa)
+          setFilial(resultado.filial)
+          setSetoresCliente(resultado.setores)
+        }
+        setCarregandoContexto(false)
+      })
+      .catch(() => {
+        if (!ativo) return
+        setContextoInvalido(true)
+        setCarregandoContexto(false)
+      })
+    return () => {
+      ativo = false
+    }
+  }, [slug])
+
   const [nome, setNome] = useState('')
   const [matricula, setMatricula] = useState('')
   const [setor, setSetor] = useState('')
@@ -68,7 +104,9 @@ export default function WorkerForm() {
       setor: setor.trim(),
       data_registro: data,
       areas_dor: semDor ? [] : Array.from(selected).sort((a, b) => a - b),
-      observacoes: observacoes.trim() || null
+      observacoes: observacoes.trim() || null,
+      empresa_id: empresa?.id ?? null,
+      filial_id: filial?.id ?? null
     })
     setEnviando(false)
     if (error) {
@@ -78,6 +116,28 @@ export default function WorkerForm() {
       return
     }
     setEnviado(true)
+  }
+
+  if (carregandoContexto) {
+    return (
+      <div className="min-h-screen grid place-items-center bg-canvas">
+        <p className="text-muted">Carregando...</p>
+      </div>
+    )
+  }
+
+  if (contextoInvalido) {
+    return (
+      <div className="min-h-screen grid place-items-center bg-canvas px-4">
+        <div className="bg-white rounded-3xl shadow-card p-10 max-w-md text-center">
+          <h1 className="font-display font-extrabold text-xl text-ink mb-2">Link não encontrado</h1>
+          <p className="text-muted">
+            Este link não corresponde a nenhuma filial cadastrada. Confirme o endereço ou contate a equipe da
+            Universo Wellness.
+          </p>
+        </div>
+      </div>
+    )
   }
 
   if (enviado) {
@@ -102,11 +162,24 @@ export default function WorkerForm() {
     )
   }
 
+  const setoresParaExibir = empresa ? setoresCliente.map((s) => s.nome) : SETORES_SUGERIDOS_PADRAO
+
   return (
     <div className="min-h-screen bg-canvas py-8 px-4">
       <div className="max-w-2xl mx-auto">
         <header className="text-center mb-8">
-          <img src="/logo-universo-wellness.png" alt="Universo Wellness" className="h-7 mx-auto mb-3" />
+          {empresa ? (
+            <>
+              {empresa.logo_url ? (
+                <img src={empresa.logo_url} alt={empresa.nome} className="h-10 mx-auto mb-2 object-contain" />
+              ) : (
+                <p className="font-display font-extrabold text-2xl text-ink mb-1">{empresa.nome}</p>
+              )}
+              <p className="text-xs text-muted mb-3">{filial?.nome} · via Universo Wellness</p>
+            </>
+          ) : (
+            <img src="/logo-universo-wellness.png" alt="Universo Wellness" className="h-7 mx-auto mb-3" />
+          )}
           <h1 className="font-display font-extrabold text-3xl sm:text-4xl text-ink">Sintomatologia Dolorosa</h1>
           <p className="text-muted mt-2">Toque no corpo para indicar onde você sente desconforto hoje.</p>
         </header>
@@ -131,19 +204,37 @@ export default function WorkerForm() {
               <label htmlFor="setor" className="block text-sm font-semibold text-ink mb-1">
                 Setor / Departamento
               </label>
-              <input
-                id="setor"
-                value={setor}
-                onChange={(e) => setSetor(e.target.value)}
-                placeholder="Ex: Produção"
-                list="setores"
-                className="w-full rounded-xl border border-teal-100 px-4 py-3 text-base focus:border-teal-500 outline-none"
-              />
-              <datalist id="setores">
-                {SETORES_SUGERIDOS.map((s) => (
-                  <option key={s} value={s} />
-                ))}
-              </datalist>
+              {empresa ? (
+                <select
+                  id="setor"
+                  value={setor}
+                  onChange={(e) => setSetor(e.target.value)}
+                  className="w-full rounded-xl border border-teal-100 px-4 py-3 text-base focus:border-teal-500 outline-none bg-white"
+                >
+                  <option value="">Selecione...</option>
+                  {setoresParaExibir.map((s) => (
+                    <option key={s} value={s}>
+                      {s}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <>
+                  <input
+                    id="setor"
+                    value={setor}
+                    onChange={(e) => setSetor(e.target.value)}
+                    placeholder="Ex: Produção"
+                    list="setores"
+                    className="w-full rounded-xl border border-teal-100 px-4 py-3 text-base focus:border-teal-500 outline-none"
+                  />
+                  <datalist id="setores">
+                    {setoresParaExibir.map((s) => (
+                      <option key={s} value={s} />
+                    ))}
+                  </datalist>
+                </>
+              )}
             </div>
 
             <div>

@@ -9,7 +9,7 @@ function escapeCsvField(value) {
 }
 
 export function exportSubmissionsToCsv(rows, filename = 'sintomatologia.csv') {
-  const headers = ['Nome', 'Setor', 'Matricula', 'Data', 'Areas_de_dor', 'Observacoes', 'Registrado_em']
+  const headers = ['Nome', 'Cliente', 'Filial', 'Setor', 'Matricula', 'Data', 'Areas_de_dor', 'Observacoes', 'Registrado_em']
   const lines = [headers.join(';')]
 
   rows.forEach((r) => {
@@ -17,6 +17,8 @@ export function exportSubmissionsToCsv(rows, filename = 'sintomatologia.csv') {
     lines.push(
       [
         r.nome,
+        r.empresas?.nome ?? '',
+        r.filiais?.nome ?? '',
         r.setor,
         r.matricula ?? '',
         r.data_registro,
