@@ -1,7 +1,18 @@
 // Funções de acesso a dados para empresas (clientes), filiais e setores.
-// Centralizado aqui para ser usado tanto no formulário público quanto no
-// painel de administração de clientes.
+// Setores agora são sempre vinculados a uma filial específica (cada filial
+// tem sua própria lista de departamentos).
 import { supabase } from './supabaseClient'
+
+export const SETORES_PADRAO_SUGESTAO = [
+  'Produção',
+  'Montagem',
+  'Embalagem',
+  'Logística',
+  'Manutenção',
+  'Qualidade',
+  'Almoxarifado',
+  'Administrativo'
+]
 
 export async function listarEmpresas() {
   const { data, error } = await supabase.from('empresas').select('*').order('nome')
@@ -19,18 +30,18 @@ export async function listarFiliaisPorEmpresa(empresaId) {
   return data ?? []
 }
 
-export async function listarSetoresPorEmpresa(empresaId) {
+export async function listarSetoresPorFilial(filialId) {
   const { data, error } = await supabase
     .from('setores')
     .select('*')
-    .eq('empresa_id', empresaId)
+    .eq('filial_id', filialId)
     .order('nome')
   if (error) throw error
   return data ?? []
 }
 
 // Busca uma filial pelo slug da URL pública, já trazendo os dados da empresa
-// e a lista de setores daquela empresa em uma única chamada.
+// e a lista de setores DESSA filial em uma única chamada.
 export async function buscarFilialPorSlug(slug) {
   const { data: filial, error } = await supabase
     .from('filiais')
@@ -40,7 +51,7 @@ export async function buscarFilialPorSlug(slug) {
   if (error) throw error
   if (!filial) return null
 
-  const setores = await listarSetoresPorEmpresa(filial.empresa_id)
+  const setores = await listarSetoresPorFilial(filial.id)
   return { filial, empresa: filial.empresas, setores }
 }
 
@@ -85,14 +96,23 @@ export async function removerFilial(id) {
   if (error) throw error
 }
 
-export async function criarSetor(empresaId, nome) {
+export async function criarSetor(empresaId, filialId, nome) {
   const { data, error } = await supabase
     .from('setores')
-    .insert({ empresa_id: empresaId, nome: nome.trim() })
+    .insert({ empresa_id: empresaId, filial_id: filialId, nome: nome.trim() })
     .select()
     .single()
   if (error) throw error
   return data
+}
+
+// Cria de uma vez a lista padrão de setores sugeridos para uma filial nova
+// (atalho para não precisar digitar um por um).
+export async function criarSetoresPadrao(empresaId, filialId) {
+  const linhas = SETORES_PADRAO_SUGESTAO.map((nome) => ({ empresa_id: empresaId, filial_id: filialId, nome }))
+  const { data, error } = await supabase.from('setores').insert(linhas).select()
+  if (error) throw error
+  return data ?? []
 }
 
 export async function removerSetor(id) {

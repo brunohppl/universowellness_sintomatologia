@@ -101,7 +101,7 @@ Three more tables support multi-client setup, all managed through `/admin/client
 
 - **`empresas`** — client companies (Coca-Cola, Gillette, ...), with an optional logo URL.
 - **`filiais`** — each client's branches/locations, each with a unique `slug` that becomes its public link (`/f/<slug>`).
-- **`setores`** — the department list, scoped per client, replacing the old hardcoded suggestions.
+- **`setores`** — the department list, scoped per branch (`filial_id`), so each branch manages its own, independent of other branches at the same client.
 
 The 10 area codes match the original paper form exactly, defined in
 `src/data/painAreas.js`:
@@ -127,10 +127,11 @@ Since this app now serves multiple client companies (not just one factory), ther
 
 1. Log into `/admin`, then click **Clientes** in the header.
 2. Click **Criar cliente** and add a company (e.g. "Coca-Cola"). The logo field takes a direct image URL — there's no upload yet (see "Ideas for later" below).
-3. Click into that client to expand it, then add at least one **filial** (branch/location) and a few **setores** (departments) — these replace the old hardcoded department suggestions, and are now fully editable per client.
-4. Each filial gets a unique link shown right there (`yoursite.com/f/coca-cola-sao-paulo`) — click **Copiar link** and that's what you put on that branch's tablet/kiosk. Each branch's form automatically shows that client's logo and department list.
+3. Click into that client to expand it, then add a **filial** (branch/location) under "Adicionar nova filial".
+4. On that filial's row, click **Setores ▾** to expand it, then either add departments one at a time or click **Usar lista padrão** to start from the standard suggestions (Produção, Embalagem, etc.) and edit from there. Each filial has its own independent list — São Paulo and Manaus can have completely different departments.
+5. Click **Abrir formulário ↗** right there on the filial's row — that opens the actual worker form for that branch in a new tab, already showing the client's logo and that branch's department list. That's the same link to put on the branch's tablet/kiosk (use **Copiar link** for that).
 
-The plain `/` link still works as a generic/test form (original Universo Wellness branding, free-text department field) — useful for testing without needing a client set up, and it keeps any bookmarks/links you were already using before this update.
+Visiting the plain `/` link on its own will always show the generic/test form — it has no way to know which client you mean, by design. To capture real data for a specific client and branch, you always go through that branch's own link (step 5 above), not `/`.
 
 If you remove a client or branch that already has submitted records, the database will refuse the delete (rather than silently orphaning that data) — you'll see a message explaining that instead of an error.
 

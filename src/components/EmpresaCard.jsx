@@ -1,43 +1,27 @@
 import { useEffect, useState } from 'react'
-import {
-  criarFilial,
-  criarSetor,
-  gerarSlug,
-  listarFiliaisPorEmpresa,
-  listarSetoresPorEmpresa,
-  removerFilial,
-  removerSetor
-} from '../lib/empresas'
+import { criarFilial, gerarSlug, listarFiliaisPorEmpresa, removerFilial } from '../lib/empresas'
+import FilialCard from './FilialCard'
 
 export default function EmpresaCard({ empresa, onRemoverEmpresa }) {
   const [aberto, setAberto] = useState(false)
   const [carregando, setCarregando] = useState(false)
   const [filiais, setFiliais] = useState([])
-  const [setores, setSetores] = useState([])
   const [erro, setErro] = useState('')
-
   const [novaFilialNome, setNovaFilialNome] = useState('')
-  const [novoSetorNome, setNovoSetorNome] = useState('')
-  const [linkCopiado, setLinkCopiado] = useState(null)
 
-  const carregarDetalhes = async () => {
+  const carregarFiliais = async () => {
     setCarregando(true)
     setErro('')
     try {
-      const [f, s] = await Promise.all([
-        listarFiliaisPorEmpresa(empresa.id),
-        listarSetoresPorEmpresa(empresa.id)
-      ])
-      setFiliais(f)
-      setSetores(s)
-    } catch (e) {
-      setErro('Não foi possível carregar os dados desta empresa.')
+      setFiliais(await listarFiliaisPorEmpresa(empresa.id))
+    } catch {
+      setErro('Não foi possível carregar as filiais desta empresa.')
     }
     setCarregando(false)
   }
 
   useEffect(() => {
-    if (aberto) carregarDetalhes()
+    if (aberto) carregarFiliais()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [aberto])
 
@@ -49,20 +33,8 @@ export default function EmpresaCard({ empresa, onRemoverEmpresa }) {
       const nova = await criarFilial(empresa.id, novaFilialNome, slug)
       setFiliais((prev) => [...prev, nova].sort((a, b) => a.nome.localeCompare(b.nome)))
       setNovaFilialNome('')
-    } catch (e) {
+    } catch {
       setErro('Não foi possível criar a filial (talvez o link já exista — tente um nome diferente).')
-    }
-  }
-
-  const handleAdicionarSetor = async (e) => {
-    e.preventDefault()
-    if (!novoSetorNome.trim()) return
-    try {
-      const novo = await criarSetor(empresa.id, novoSetorNome)
-      setSetores((prev) => [...prev, novo].sort((a, b) => a.nome.localeCompare(b.nome)))
-      setNovoSetorNome('')
-    } catch (e) {
-      setErro('Não foi possível criar o setor.')
     }
   }
 
@@ -78,22 +50,6 @@ export default function EmpresaCard({ empresa, onRemoverEmpresa }) {
         setErro('Não foi possível remover a filial.')
       }
     }
-  }
-
-  const handleRemoverSetor = async (id) => {
-    try {
-      await removerSetor(id)
-      setSetores((prev) => prev.filter((s) => s.id !== id))
-    } catch (e) {
-      setErro('Não foi possível remover o setor.')
-    }
-  }
-
-  const copiarLink = (slug) => {
-    const url = `${window.location.origin}/f/${slug}`
-    navigator.clipboard?.writeText(url)
-    setLinkCopiado(slug)
-    setTimeout(() => setLinkCopiado(null), 1800)
   }
 
   return (
@@ -116,111 +72,54 @@ export default function EmpresaCard({ empresa, onRemoverEmpresa }) {
       </button>
 
       {aberto && (
-        <div className="border-t border-teal-50 p-4 sm:p-5 space-y-6">
+        <div className="border-t border-teal-50 p-4 sm:p-5 space-y-4">
           {erro && (
             <div className="bg-coral-50 border border-coral-300 text-coral-700 rounded-xl px-3 py-2 text-sm">{erro}</div>
           )}
 
-          {carregando ? (
-            <p className="text-sm text-muted">Carregando...</p>
-          ) : (
-            <>
-              {/* Filiais */}
-              <div>
-                <h4 className="font-display font-semibold text-sm text-ink mb-2">
-                  Filiais <span className="text-muted font-normal">({filiais.length})</span>
-                </h4>
-                <div className="space-y-2 mb-3">
-                  {filiais.length === 0 && <p className="text-sm text-muted italic">Nenhuma filial cadastrada ainda.</p>}
-                  {filiais.map((f) => (
-                    <div
-                      key={f.id}
-                      className="flex flex-wrap items-center justify-between gap-2 bg-canvas rounded-xl px-3 py-2.5"
-                    >
-                      <div>
-                        <p className="font-medium text-ink text-sm">{f.nome}</p>
-                        <p className="text-xs text-muted font-mono">/f/{f.slug}</p>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => copiarLink(f.slug)}
-                          className="text-xs font-semibold bg-teal-50 hover:bg-teal-100 text-teal-700 px-3 py-1.5 rounded-lg transition-colors"
-                        >
-                          {linkCopiado === f.slug ? 'Copiado ✓' : 'Copiar link'}
-                        </button>
-                        <button
-                          onClick={() => handleRemoverFilial(f.id)}
-                          className="text-xs font-semibold text-coral-600 hover:text-coral-700 px-2 py-1.5"
-                        >
-                          Remover
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-                <form onSubmit={handleAdicionarFilial} className="flex gap-2">
-                  <input
-                    value={novaFilialNome}
-                    onChange={(e) => setNovaFilialNome(e.target.value)}
-                    placeholder="Nome da nova filial (ex: São Paulo)"
-                    className="flex-1 rounded-xl border border-teal-100 px-3 py-2 text-sm outline-none focus:border-teal-500"
-                  />
-                  <button
-                    type="submit"
-                    className="text-sm font-semibold bg-teal-700 hover:bg-teal-600 text-white px-4 py-2 rounded-xl transition-colors"
-                  >
-                    Adicionar
-                  </button>
-                </form>
-              </div>
+          <div>
+            <h4 className="font-display font-semibold text-sm text-ink mb-2">
+              Filiais <span className="text-muted font-normal">({filiais.length})</span>
+            </h4>
+            <p className="text-xs text-muted mb-3">
+              Cada filial tem seu próprio link de formulário e sua própria lista de setores. Clique em "Setores"
+              dentro de cada filial para configurar os departamentos dela, e em "Abrir formulário" para testar ou
+              começar a usar.
+            </p>
 
-              {/* Setores */}
-              <div>
-                <h4 className="font-display font-semibold text-sm text-ink mb-2">
-                  Setores <span className="text-muted font-normal">({setores.length})</span>
-                </h4>
-                <div className="flex flex-wrap gap-2 mb-3">
-                  {setores.length === 0 && <p className="text-sm text-muted italic">Nenhum setor cadastrado ainda.</p>}
-                  {setores.map((s) => (
-                    <span
-                      key={s.id}
-                      className="flex items-center gap-1.5 bg-teal-50 border border-teal-100 text-teal-700 rounded-full pl-3 pr-2 py-1 text-sm"
-                    >
-                      {s.nome}
-                      <button
-                        onClick={() => handleRemoverSetor(s.id)}
-                        className="w-4 h-4 grid place-items-center rounded-full hover:bg-teal-100 text-teal-700"
-                        title="Remover setor"
-                      >
-                        ×
-                      </button>
-                    </span>
-                  ))}
-                </div>
-                <form onSubmit={handleAdicionarSetor} className="flex gap-2">
-                  <input
-                    value={novoSetorNome}
-                    onChange={(e) => setNovoSetorNome(e.target.value)}
-                    placeholder="Nome do novo setor (ex: Produção)"
-                    className="flex-1 rounded-xl border border-teal-100 px-3 py-2 text-sm outline-none focus:border-teal-500"
-                  />
-                  <button
-                    type="submit"
-                    className="text-sm font-semibold bg-teal-700 hover:bg-teal-600 text-white px-4 py-2 rounded-xl transition-colors"
-                  >
-                    Adicionar
-                  </button>
-                </form>
+            {carregando ? (
+              <p className="text-sm text-muted">Carregando...</p>
+            ) : (
+              <div className="space-y-2 mb-3">
+                {filiais.length === 0 && <p className="text-sm text-muted italic">Nenhuma filial cadastrada ainda.</p>}
+                {filiais.map((f) => (
+                  <FilialCard key={f.id} empresa={empresa} filial={f} onRemoverFilial={handleRemoverFilial} />
+                ))}
               </div>
+            )}
 
+            <form onSubmit={handleAdicionarFilial} className="flex gap-2">
+              <input
+                value={novaFilialNome}
+                onChange={(e) => setNovaFilialNome(e.target.value)}
+                placeholder="Nome da nova filial (ex: São Paulo)"
+                className="flex-1 rounded-xl border border-teal-100 px-3 py-2 text-sm outline-none focus:border-teal-500"
+              />
               <button
-                onClick={() => onRemoverEmpresa(empresa.id)}
-                className="text-xs font-semibold text-coral-600 hover:text-coral-700"
+                type="submit"
+                className="text-sm font-semibold bg-teal-700 hover:bg-teal-600 text-white px-4 py-2 rounded-xl transition-colors"
               >
-                Remover este cliente
+                Adicionar
               </button>
-            </>
-          )}
+            </form>
+          </div>
+
+          <button
+            onClick={() => onRemoverEmpresa(empresa.id)}
+            className="text-xs font-semibold text-coral-600 hover:text-coral-700"
+          >
+            Remover este cliente
+          </button>
         </div>
       )}
     </div>

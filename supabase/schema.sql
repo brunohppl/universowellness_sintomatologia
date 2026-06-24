@@ -39,11 +39,17 @@ create index if not exists filiais_empresa_idx on public.filiais (empresa_id);
 create table if not exists public.setores (
   id         uuid primary key default gen_random_uuid(),
   empresa_id uuid not null references public.empresas(id) on delete cascade,
+  filial_id  uuid references public.filiais(id) on delete cascade,
   nome       text not null,
   created_at timestamptz not null default now()
 );
-comment on table public.setores is 'Lista de setores/departamentos configurável por empresa.';
+comment on table public.setores is 'Lista de setores/departamentos, agora configurável por filial (cada filial tem sua própria lista).';
 create index if not exists setores_empresa_idx on public.setores (empresa_id);
+create index if not exists setores_filial_idx on public.setores (filial_id);
+
+-- Se você rodou uma versão anterior deste schema, esta linha adiciona a
+-- coluna que faltava sem apagar nenhum setor já cadastrado:
+alter table public.setores add column if not exists filial_id uuid references public.filiais(id) on delete cascade;
 
 -- ----------------------------------------------------------------------------
 -- Tabela principal: cada linha é um registro preenchido por um trabalhador
