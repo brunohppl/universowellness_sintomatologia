@@ -39,17 +39,21 @@ create index if not exists filiais_empresa_idx on public.filiais (empresa_id);
 create table if not exists public.setores (
   id         uuid primary key default gen_random_uuid(),
   empresa_id uuid not null references public.empresas(id) on delete cascade,
-  filial_id  uuid references public.filiais(id) on delete cascade,
   nome       text not null,
   created_at timestamptz not null default now()
 );
 comment on table public.setores is 'Lista de setores/departamentos, agora configurável por filial (cada filial tem sua própria lista).';
+
+-- Se você rodou uma versão anterior deste schema (sem filial_id), esta linha
+-- adiciona a coluna que faltava sem apagar nenhum setor já cadastrado.
+-- Importante: isso roda ANTES dos índices abaixo, porque se a tabela já
+-- existia, o "create table if not exists" acima é ignorado e a coluna
+-- definida nele nunca seria criada — então ela tem que vir de algum lugar
+-- que sempre executa, que é este ALTER TABLE.
+alter table public.setores add column if not exists filial_id uuid references public.filiais(id) on delete cascade;
+
 create index if not exists setores_empresa_idx on public.setores (empresa_id);
 create index if not exists setores_filial_idx on public.setores (filial_id);
-
--- Se você rodou uma versão anterior deste schema, esta linha adiciona a
--- coluna que faltava sem apagar nenhum setor já cadastrado:
-alter table public.setores add column if not exists filial_id uuid references public.filiais(id) on delete cascade;
 
 -- ----------------------------------------------------------------------------
 -- Tabela principal: cada linha é um registro preenchido por um trabalhador
@@ -124,5 +128,5 @@ create policy "Equipe gerencia setores" on public.setores for all to authenticat
 -- 1. Crie pelo menos um usuário da equipe em Authentication > Users > Add user.
 -- 2. Faça login em /admin, abra "Clientes" e cadastre cada empresa, suas
 --    filiais (cada uma gera um link único, ex: seusite.com/f/coca-cola-sp)
---    e a lista de setores daquela empresa.
+--    e a lista de setores de cada filial.
 -- ============================================================================
