@@ -5,41 +5,30 @@ import LandingPage from './pages/LandingPage'
 import WorkerForm from './pages/WorkerForm'
 import AdminDashboard from './pages/AdminDashboard'
 import AdminClientes from './pages/AdminClientes'
+import AdminUsers from './pages/AdminUsers'
 
 export default function App() {
   return (
     <BrowserRouter>
       <Routes>
-        {/* Public — login only */}
+        {/* Public */}
         <Route path="/login" element={<LoginPage />} />
 
-        {/* All authenticated users — workers and admins */}
-        <Route path="/" element={
-          <RequireAuth>
-            <LandingPage />
-          </RequireAuth>
-        } />
-        <Route path="/f/:slug" element={
-          <RequireAuth>
-            <WorkerForm />
-          </RequireAuth>
-        } />
+        {/* Level 1+ — all authenticated users */}
+        <Route path="/" element={<RequireAuth minLevel={1}><LandingPage /></RequireAuth>} />
+        <Route path="/f/:slug" element={<RequireAuth minLevel={1}><WorkerForm /></RequireAuth>} />
 
-        {/* Admin only */}
-        <Route path="/admin" element={
-          <RequireAuth adminOnly>
-            <AdminDashboard />
-          </RequireAuth>
-        } />
-        <Route path="/admin/clientes" element={
-          <RequireAuth adminOnly>
-            <AdminClientes />
-          </RequireAuth>
-        } />
+        {/* Level 2+ — analysts and above */}
+        <Route path="/admin" element={<RequireAuth minLevel={2}><AdminDashboard /></RequireAuth>} />
 
-        {/* Legacy login path redirect */}
+        {/* Level 3+ — managers and above */}
+        <Route path="/admin/clientes" element={<RequireAuth minLevel={3}><AdminClientes /></RequireAuth>} />
+
+        {/* Level 4 — superadmin only */}
+        <Route path="/admin/utilizadores" element={<RequireAuth minLevel={4}><AdminUsers /></RequireAuth>} />
+
+        {/* Legacy redirects */}
         <Route path="/admin/login" element={<Navigate to="/login" replace />} />
-
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>

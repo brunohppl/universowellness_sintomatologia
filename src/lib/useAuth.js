@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react'
 import { supabase } from './supabaseClient'
+import { canManageData, canManageUsers, canViewResults, ROLE_LEVEL } from './roles'
 
 export function useAuth() {
-  const [session, setSession] = useState(undefined) // undefined = loading
-  const [role, setRole] = useState(null)            // 'admin' | 'user' | null
+  const [session, setSession] = useState(undefined)
+  const [role, setRole]       = useState(null)
 
   const fetchRole = async (userId) => {
     if (!userId) { setRole(null); return }
@@ -12,7 +13,7 @@ export function useAuth() {
       .select('role')
       .eq('id', userId)
       .single()
-    setRole(data?.role ?? 'user')
+    setRole(data?.role ?? 'worker')
   }
 
   useEffect(() => {
@@ -20,9 +21,9 @@ export function useAuth() {
       setSession(data.session)
       fetchRole(data.session?.user?.id)
     })
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, newSession) => {
-      setSession(newSession)
-      fetchRole(newSession?.user?.id)
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, s) => {
+      setSession(s)
+      fetchRole(s?.user?.id)
     })
     return () => listener.subscription.unsubscribe()
   }, [])
@@ -30,14 +31,14 @@ export function useAuth() {
   return {
     session,
     role,
-    isAdmin: role === 'admin',
-    loading: session === undefined,
+    roleLevel:       ROLE_LEVEL[role] ?? 0,
+    loading:         session === undefined,
+    // convenience booleans
+    canViewResults:  canViewResults(role),
+    canManageData:   canManageData(role),
+    canManageUsers:  canManageUsers(role),
     signIn: (email, password) =>
-      supabase.auth.signInWithPassword({
-        email,
-        password,
-        options: { persistSession: true }
-      }),
+      supabase.auth.signInWithPassword({ email, password, options: { persistSession: true } }),
     signOut: () => supabase.auth.signOut()
   }
 }

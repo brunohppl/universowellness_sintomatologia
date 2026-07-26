@@ -10,32 +10,69 @@
 create extension if not exists "pgcrypto";
 
 -- ----------------------------------------------------------------------------
--- Perfis de usuário (papéis: admin | user)
--- Criado automaticamente para cada usuário adicionado no Supabase Auth.
--- Para definir o papel de um usuário:
---   1. Abra o perfil dele em Authentication > Users no painel do Supabase
---   2. Edite o campo "user_metadata" e adicione: { "role": "admin" }
---      ou deixe em branco para papel "user" (padrão)
--- OU: após criar o usuário, edite diretamente na tabela profiles abaixo.
+-- Perfis de utilizador — 4 níveis de acesso
+--   worker     (1) — formulários apenas
+--   analyst    (2) — + painel de resultados e exportações
+--   manager    (3) — + gestão de empresas/filiais/setores
+--   superadmin (4) — + gestão de utilizadores
+--
+-- O papel é definido no convite (via /api/invite-user) ou editado directamente
+-- na tabela profiles pelo superadmin. O trigger abaixo cria o perfil
+-- automaticamente para cada novo utilizador adicionado ao Supabase Auth.
 -- ----------------------------------------------------------------------------
 create table if not exists public.profiles (
   id         uuid primary key references auth.users(id) on delete cascade,
-  role       text not null default 'user' check (role in ('admin', 'user')),
+  role       text not null default 'worker',
   created_at timestamptz not null default now()
 );
-comment on table public.profiles is
-  'Papéis dos utilizadores. admin = acesso total; user = apenas formulários.';
 
--- Trigger: cria automaticamente um perfil (role = user) quando um novo
--- utilizador é adicionado ao Supabase Auth.
+-- Migrar papéis antigos ANTES de adicionar a nova constraint.
+-- (se a constraint já existe com os valores antigos, removê-la primeiro)
+alter table public.profiles drop constraint if exists profiles_role_check;
+
+-- Converter valores antigos para os novos equivalentes
+update public.profiles set role = 'worker'     where role = 'user';
+update public.profiles set role = 'superadmin' where role = 'admin';
+-- Converter qualquer outro valor inesperado para 'worker'
+update public.profiles set role = 'worker'
+  where role not in ('worker', 'analyst', 'manager', 'superadmin');
+
+-- Agora é seguro adicionar a nova constraint (todos os valores já são válidos)
+alter table public.profiles
+  add constraint profiles_role_check
+  check (role in ('worker', 'analyst', 'manager', 'superadmin'));
+
+comment on table public.profiles is
+  'Papéis dos utilizadores. worker(1) analyst(2) manager(3) superadmin(4).';
+
+-- Função auxiliar: retorna o nível numérico do utilizador actual.
+-- Usada nas políticas RLS para evitar repetição.
+create or replace function public.my_role_level()
+returns int language sql security definer stable as $$
+  select case coalesce((select role from public.profiles where id = auth.uid()), 'worker')
+    when 'worker'     then 1
+    when 'analyst'    then 2
+    when 'manager'    then 3
+    when 'superadmin' then 4
+    else 0
+  end
+$$;
+
+-- Trigger: cria automaticamente um perfil quando um novo utilizador
+-- é adicionado ao Supabase Auth. O papel vem do campo user_metadata.role
+-- definido no convite; se ausente, fica 'worker' por omissão.
 create or replace function public.handle_new_user()
 returns trigger language plpgsql security definer set search_path = public as $$
+declare
+  requested_role text;
 begin
+  requested_role := coalesce(new.raw_user_meta_data->>'role', 'worker');
+  -- Garantir que só papéis válidos entram na tabela
+  if requested_role not in ('worker', 'analyst', 'manager', 'superadmin') then
+    requested_role := 'worker';
+  end if;
   insert into public.profiles (id, role)
-  values (
-    new.id,
-    coalesce(new.raw_user_meta_data->>'role', 'user')
-  )
+  values (new.id, requested_role)
   on conflict (id) do nothing;
   return new;
 end;
@@ -46,38 +83,32 @@ create trigger on_auth_user_created
   after insert on auth.users
   for each row execute procedure public.handle_new_user();
 
--- RLS para profiles: cada utilizador lê apenas o seu próprio perfil.
--- A equipa admin pode ler todos (para gestão futura).
 alter table public.profiles enable row level security;
 
+-- Cada utilizador lê o seu próprio perfil (necessário para o app descobrir o papel)
 drop policy if exists "Utilizador lê o próprio perfil" on public.profiles;
 create policy "Utilizador lê o próprio perfil"
-  on public.profiles for select
-  to authenticated
+  on public.profiles for select to authenticated
   using (auth.uid() = id);
 
-drop policy if exists "Admin lê todos os perfis" on public.profiles;
-create policy "Admin lê todos os perfis"
-  on public.profiles for select
-  to authenticated
-  using (
-    exists (
-      select 1 from public.profiles p
-      where p.id = auth.uid() and p.role = 'admin'
-    )
-  );
+-- Superadmin lê todos os perfis (página de utilizadores)
+drop policy if exists "Superadmin lê todos os perfis" on public.profiles;
+create policy "Superadmin lê todos os perfis"
+  on public.profiles for select to authenticated
+  using (public.my_role_level() >= 4);
 
-drop policy if exists "Admin gere perfis" on public.profiles;
-create policy "Admin gere perfis"
-  on public.profiles for all
-  to authenticated
-  using (
-    exists (
-      select 1 from public.profiles p
-      where p.id = auth.uid() and p.role = 'admin'
-    )
-  )
-  with check (true);
+-- Superadmin actualiza papéis (mas não o seu próprio, para evitar bloqueio acidental)
+drop policy if exists "Superadmin gere perfis" on public.profiles;
+create policy "Superadmin gere perfis"
+  on public.profiles for update to authenticated
+  using  (public.my_role_level() >= 4 and id <> auth.uid())
+  with check (public.my_role_level() >= 4 and id <> auth.uid());
+
+-- Remover políticas antigas se existirem
+drop policy if exists "Admin lê todos os perfis" on public.profiles;
+drop policy if exists "Admin gere perfis"        on public.profiles;
+
+
 
 
 create table if not exists public.empresas (
@@ -164,41 +195,52 @@ alter table public.empresas enable row level security;
 alter table public.filiais enable row level security;
 alter table public.setores enable row level security;
 
--- submissions: qualquer utilizador autenticado insere, apenas admins lêem
+-- submissions: qualquer utilizador autenticado insere (workers incluídos);
+-- apenas analyst e acima podem ler
 drop policy if exists "Trabalhadores podem enviar registros" on public.submissions;
 create policy "Trabalhadores podem enviar registros"
-  on public.submissions for insert
-  to authenticated
+  on public.submissions for insert to authenticated
   with check (true);
 
 drop policy if exists "Equipe autenticada pode ler registros" on public.submissions;
 create policy "Equipe autenticada pode ler registros"
-  on public.submissions for select
-  to authenticated
-  using (
-    exists (
-      select 1 from public.profiles p
-      where p.id = auth.uid() and p.role = 'admin'
-    )
-  );
+  on public.submissions for select to authenticated
+  using (public.my_role_level() >= 2);
 
--- empresas/filiais/setores: leitura pública (o formulário precisa carregar o
--- nome/logo da empresa e a lista de setores antes do login existir), mas
--- só a equipe autenticada da Universo Wellness pode criar/editar/remover.
+-- empresas/filiais/setores: todos os autenticados lêem (o formulário precisa
+-- carregar a lista de setores); apenas manager e acima escrevem
 drop policy if exists "Leitura pública de empresas" on public.empresas;
-create policy "Leitura pública de empresas" on public.empresas for select to anon, authenticated using (true);
+drop policy if exists "Leitura autenticada de empresas" on public.empresas;
+create policy "Leitura autenticada de empresas"
+  on public.empresas for select to authenticated using (true);
+
 drop policy if exists "Equipe gerencia empresas" on public.empresas;
-create policy "Equipe gerencia empresas" on public.empresas for all to authenticated using (true) with check (true);
+create policy "Equipe gerencia empresas"
+  on public.empresas for all to authenticated
+  using  (public.my_role_level() >= 3)
+  with check (public.my_role_level() >= 3);
 
 drop policy if exists "Leitura pública de filiais" on public.filiais;
-create policy "Leitura pública de filiais" on public.filiais for select to anon, authenticated using (true);
+drop policy if exists "Leitura autenticada de filiais" on public.filiais;
+create policy "Leitura autenticada de filiais"
+  on public.filiais for select to authenticated using (true);
+
 drop policy if exists "Equipe gerencia filiais" on public.filiais;
-create policy "Equipe gerencia filiais" on public.filiais for all to authenticated using (true) with check (true);
+create policy "Equipe gerencia filiais"
+  on public.filiais for all to authenticated
+  using  (public.my_role_level() >= 3)
+  with check (public.my_role_level() >= 3);
 
 drop policy if exists "Leitura pública de setores" on public.setores;
-create policy "Leitura pública de setores" on public.setores for select to anon, authenticated using (true);
+drop policy if exists "Leitura autenticada de setores" on public.setores;
+create policy "Leitura autenticada de setores"
+  on public.setores for select to authenticated using (true);
+
 drop policy if exists "Equipe gerencia setores" on public.setores;
-create policy "Equipe gerencia setores" on public.setores for all to authenticated using (true) with check (true);
+create policy "Equipe gerencia setores"
+  on public.setores for all to authenticated
+  using  (public.my_role_level() >= 3)
+  with check (public.my_role_level() >= 3);
 
 -- ============================================================================
 -- Próximos passos:
