@@ -15,7 +15,12 @@ export function useAuth() {
   return {
     session,
     loading: session === undefined,
-    signIn: (email, password) => supabase.auth.signInWithPassword({ email, password }),
+    signIn: (email, password) =>
+      supabase.auth.signInWithPassword({
+        email,
+        password,
+        options: { persistSession: true }  // 30-day session by default, refreshed silently
+      }),
     signOut: () => supabase.auth.signOut()
   }
 }

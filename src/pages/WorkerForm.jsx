@@ -311,6 +311,10 @@ export default function WorkerForm() {
           </button>
 
           <p className="text-center text-xs text-muted pb-6">
+            <a href="/" className="underline hover:text-teal-700">
+              ← Trocar empresa / filial
+            </a>
+            {' · '}
             <a href="/admin" className="underline hover:text-teal-700">
               Acesso da equipe de saúde / RH
             </a>
