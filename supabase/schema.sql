@@ -10,8 +10,76 @@
 create extension if not exists "pgcrypto";
 
 -- ----------------------------------------------------------------------------
--- Empresas (clientes da Universo Wellness, ex: Coca-Cola, Gillette, Colgate)
+-- Perfis de usuário (papéis: admin | user)
+-- Criado automaticamente para cada usuário adicionado no Supabase Auth.
+-- Para definir o papel de um usuário:
+--   1. Abra o perfil dele em Authentication > Users no painel do Supabase
+--   2. Edite o campo "user_metadata" e adicione: { "role": "admin" }
+--      ou deixe em branco para papel "user" (padrão)
+-- OU: após criar o usuário, edite diretamente na tabela profiles abaixo.
 -- ----------------------------------------------------------------------------
+create table if not exists public.profiles (
+  id         uuid primary key references auth.users(id) on delete cascade,
+  role       text not null default 'user' check (role in ('admin', 'user')),
+  created_at timestamptz not null default now()
+);
+comment on table public.profiles is
+  'Papéis dos utilizadores. admin = acesso total; user = apenas formulários.';
+
+-- Trigger: cria automaticamente um perfil (role = user) quando um novo
+-- utilizador é adicionado ao Supabase Auth.
+create or replace function public.handle_new_user()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  insert into public.profiles (id, role)
+  values (
+    new.id,
+    coalesce(new.raw_user_meta_data->>'role', 'user')
+  )
+  on conflict (id) do nothing;
+  return new;
+end;
+$$;
+
+drop trigger if exists on_auth_user_created on auth.users;
+create trigger on_auth_user_created
+  after insert on auth.users
+  for each row execute procedure public.handle_new_user();
+
+-- RLS para profiles: cada utilizador lê apenas o seu próprio perfil.
+-- A equipa admin pode ler todos (para gestão futura).
+alter table public.profiles enable row level security;
+
+drop policy if exists "Utilizador lê o próprio perfil" on public.profiles;
+create policy "Utilizador lê o próprio perfil"
+  on public.profiles for select
+  to authenticated
+  using (auth.uid() = id);
+
+drop policy if exists "Admin lê todos os perfis" on public.profiles;
+create policy "Admin lê todos os perfis"
+  on public.profiles for select
+  to authenticated
+  using (
+    exists (
+      select 1 from public.profiles p
+      where p.id = auth.uid() and p.role = 'admin'
+    )
+  );
+
+drop policy if exists "Admin gere perfis" on public.profiles;
+create policy "Admin gere perfis"
+  on public.profiles for all
+  to authenticated
+  using (
+    exists (
+      select 1 from public.profiles p
+      where p.id = auth.uid() and p.role = 'admin'
+    )
+  )
+  with check (true);
+
+
 create table if not exists public.empresas (
   id         uuid primary key default gen_random_uuid(),
   nome       text not null,
@@ -96,14 +164,23 @@ alter table public.empresas enable row level security;
 alter table public.filiais enable row level security;
 alter table public.setores enable row level security;
 
--- submissions: qualquer um insere, só autenticado lê (sem update/delete por design)
+-- submissions: qualquer utilizador autenticado insere, apenas admins lêem
 drop policy if exists "Trabalhadores podem enviar registros" on public.submissions;
 create policy "Trabalhadores podem enviar registros"
-  on public.submissions for insert to anon, authenticated with check (true);
+  on public.submissions for insert
+  to authenticated
+  with check (true);
 
 drop policy if exists "Equipe autenticada pode ler registros" on public.submissions;
 create policy "Equipe autenticada pode ler registros"
-  on public.submissions for select to authenticated using (true);
+  on public.submissions for select
+  to authenticated
+  using (
+    exists (
+      select 1 from public.profiles p
+      where p.id = auth.uid() and p.role = 'admin'
+    )
+  );
 
 -- empresas/filiais/setores: leitura pública (o formulário precisa carregar o
 -- nome/logo da empresa e a lista de setores antes do login existir), mas

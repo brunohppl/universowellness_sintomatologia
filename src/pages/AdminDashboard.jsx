@@ -6,6 +6,7 @@ import { AREAS_DOR, getAreaNome } from '../data/painAreas'
 import { exportSubmissionsToCsv } from '../lib/csv'
 import { gerarRelatorioPdf } from '../lib/pdfReport'
 import { listarEmpresas, listarFiliaisPorEmpresa } from '../lib/empresas'
+import AppBar from '../components/AppBar'
 import StatCard from '../components/StatCard'
 import AreaFrequencyChart from '../components/AreaFrequencyChart'
 import SetorChart from '../components/SetorChart'
@@ -175,26 +176,10 @@ export default function AdminDashboard() {
 
   return (
     <div className="min-h-screen bg-canvas">
-      <header className="bg-white border-b border-teal-100 px-4 sm:px-8 py-4 flex items-center justify-between sticky top-0 z-10">
-        <div>
-          <img src="/logo-universo-wellness.png" alt="Universo Wellness" className="h-6 mb-1" />
-          <h1 className="font-display font-extrabold text-xl text-ink">Painel de Sintomatologia</h1>
-        </div>
-        <div className="flex items-center gap-3">
-          <a href="/admin/clientes" className="text-sm text-teal-700 underline hidden sm:inline">
-            Clientes
-          </a>
-          <a href="/" className="text-sm text-teal-700 underline hidden sm:inline">
-            Ir para o formulário
-          </a>
-          <button
-            onClick={() => signOut().then(() => navigate('/admin/login'))}
-            className="text-sm font-semibold bg-teal-50 hover:bg-teal-100 text-teal-700 px-4 py-2 rounded-xl transition-colors"
-          >
-            Sair
-          </button>
-        </div>
-      </header>
+      <AppBar />
+      <div className="px-2 py-3 bg-white border-b border-teal-50">
+        <h1 className="font-display font-extrabold text-lg text-ink px-4 sm:px-8">Painel de Sintomatologia</h1>
+      </div>
 
       <main className="px-4 sm:px-8 py-6 max-w-7xl mx-auto">
         {/* Filtros */}

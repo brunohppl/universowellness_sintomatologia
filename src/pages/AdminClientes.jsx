@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../lib/useAuth'
 import { criarEmpresa, listarEmpresas, removerEmpresa } from '../lib/empresas'
 import EmpresaCard from '../components/EmpresaCard'
+import AppBar from '../components/AppBar'
 
 export default function AdminClientes() {
   const { session } = useAuth()
@@ -68,18 +69,10 @@ export default function AdminClientes() {
 
   return (
     <div className="min-h-screen bg-canvas">
-      <header className="bg-white border-b border-teal-100 px-4 sm:px-8 py-4 flex items-center justify-between sticky top-0 z-10">
-        <div>
-          <img src="/logo-universo-wellness.png" alt="Universo Wellness" className="h-6 mb-1" />
-          <h1 className="font-display font-extrabold text-xl text-ink">Clientes</h1>
-        </div>
-        <a
-          href="/admin"
-          className="text-sm font-semibold bg-teal-50 hover:bg-teal-100 text-teal-700 px-4 py-2 rounded-xl transition-colors"
-        >
-          ← Painel
-        </a>
-      </header>
+      <AppBar />
+      <div className="px-2 py-3 bg-white border-b border-teal-50">
+        <h1 className="font-display font-extrabold text-lg text-ink px-4 sm:px-8">Clientes</h1>
+      </div>
 
       <main className="px-4 sm:px-8 py-6 max-w-3xl mx-auto">
         <p className="text-muted mb-6">

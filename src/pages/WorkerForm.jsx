@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useParams } from 'react-router-dom'
+import AppBar from '../components/AppBar'
 import BodyMapSelector from '../components/BodyMapSelector'
 import { supabase } from '../lib/supabaseClient'
 import { buscarFilialPorSlug } from '../lib/empresas'
@@ -120,21 +121,28 @@ export default function WorkerForm() {
 
   if (carregandoContexto) {
     return (
-      <div className="min-h-screen grid place-items-center bg-canvas">
-        <p className="text-muted">Carregando...</p>
+      <div className="min-h-screen flex flex-col bg-canvas">
+        <AppBar />
+        <div className="flex-1 grid place-items-center">
+          <div className="w-8 h-8 rounded-full border-2 border-teal-500 border-t-transparent animate-spin" />
+        </div>
       </div>
     )
   }
 
   if (contextoInvalido) {
     return (
-      <div className="min-h-screen grid place-items-center bg-canvas px-4">
-        <div className="bg-white rounded-3xl shadow-card p-10 max-w-md text-center">
-          <h1 className="font-display font-extrabold text-xl text-ink mb-2">Link não encontrado</h1>
-          <p className="text-muted">
-            Este link não corresponde a nenhuma filial cadastrada. Confirme o endereço ou contate a equipe da
-            Universo Wellness.
-          </p>
+      <div className="min-h-screen flex flex-col bg-canvas">
+        <AppBar />
+        <div className="flex-1 grid place-items-center px-4">
+          <div className="bg-white rounded-3xl shadow-card p-10 max-w-md text-center">
+            <h1 className="font-display font-extrabold text-xl text-ink mb-2">Link não encontrado</h1>
+            <p className="text-muted">
+              Este link não corresponde a nenhuma filial cadastrada. Confirme o endereço ou contacte a equipa da
+              Universo Wellness.
+            </p>
+            <a href="/" className="text-sm text-teal-700 underline mt-4 inline-block">← Voltar à seleção</a>
+          </div>
         </div>
       </div>
     )
@@ -142,21 +150,24 @@ export default function WorkerForm() {
 
   if (enviado) {
     return (
-      <div className="min-h-screen grid place-items-center bg-canvas px-4">
-        <div className="bg-white rounded-3xl shadow-card p-10 max-w-md text-center animate-popIn">
-          <div className="w-16 h-16 mx-auto mb-5 rounded-full bg-leaf-500 grid place-items-center text-white text-3xl">
-            ✓
+      <div className="min-h-screen flex flex-col bg-canvas">
+        <AppBar />
+        <div className="flex-1 grid place-items-center px-4">
+          <div className="bg-white rounded-3xl shadow-card p-10 max-w-md text-center animate-popIn">
+            <div className="w-16 h-16 mx-auto mb-5 rounded-full bg-leaf-500 grid place-items-center text-white text-3xl">
+              ✓
+            </div>
+            <h1 className="font-display font-extrabold text-2xl text-ink mb-2">Registro enviado</h1>
+            <p className="text-muted mb-8">
+              Obrigado, {nome.split(' ')[0]}. Seu registro de hoje foi salvo com sucesso.
+            </p>
+            <button
+              onClick={resetar}
+              className="w-full bg-teal-700 hover:bg-teal-600 text-white font-display font-semibold py-3 rounded-2xl transition-colors"
+            >
+              Registrar outra pessoa
+            </button>
           </div>
-          <h1 className="font-display font-extrabold text-2xl text-ink mb-2">Registro enviado</h1>
-          <p className="text-muted mb-8">
-            Obrigado, {nome.split(' ')[0]}. Seu registro de hoje foi salvo com sucesso.
-          </p>
-          <button
-            onClick={resetar}
-            className="w-full bg-teal-700 hover:bg-teal-600 text-white font-display font-semibold py-3 rounded-2xl transition-colors"
-          >
-            Registrar outra pessoa
-          </button>
         </div>
       </div>
     )
@@ -165,21 +176,22 @@ export default function WorkerForm() {
   const setoresParaExibir = empresa ? setoresCliente.map((s) => s.nome) : SETORES_SUGERIDOS_PADRAO
 
   return (
-    <div className="min-h-screen bg-canvas py-8 px-4">
+    <div className="min-h-screen bg-canvas flex flex-col">
+      <AppBar />
+
+      <div className="flex-1 py-8 px-4">
       <div className="max-w-2xl mx-auto">
         <header className="text-center mb-8">
           {empresa ? (
             <>
               {empresa.logo_url ? (
-                <img src={empresa.logo_url} alt={empresa.nome} className="h-10 mx-auto mb-2 object-contain" />
+                <img src={empresa.logo_url} alt={empresa.nome} className="h-12 mx-auto mb-1 object-contain" />
               ) : (
                 <p className="font-display font-extrabold text-2xl text-ink mb-1">{empresa.nome}</p>
               )}
-              <p className="text-xs text-muted mb-3">{filial?.nome} · via Universo Wellness</p>
+              <p className="text-xs text-muted mb-3">{filial?.nome}</p>
             </>
-          ) : (
-            <img src="/logo-universo-wellness.png" alt="Universo Wellness" className="h-7 mx-auto mb-3" />
-          )}
+          ) : null}
           <h1 className="font-display font-extrabold text-3xl sm:text-4xl text-ink">Sintomatologia Dolorosa</h1>
           <p className="text-muted mt-2">Toque no corpo para indicar onde você sente desconforto hoje.</p>
         </header>
@@ -314,12 +326,9 @@ export default function WorkerForm() {
             <a href="/" className="underline hover:text-teal-700">
               ← Trocar empresa / filial
             </a>
-            {' · '}
-            <a href="/admin" className="underline hover:text-teal-700">
-              Acesso da equipe de saúde / RH
-            </a>
           </p>
         </form>
+      </div>
       </div>
     </div>
   )

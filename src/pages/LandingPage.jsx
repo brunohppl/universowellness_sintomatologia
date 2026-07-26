@@ -1,9 +1,12 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import AppBar from '../components/AppBar'
+import { useAuth } from '../lib/useAuth'
 import { listarEmpresas, listarFiliaisPorEmpresa } from '../lib/empresas'
 
 export default function LandingPage() {
   const navigate = useNavigate()
+  const { isAdmin } = useAuth()
 
   const [empresas, setEmpresas] = useState([])
   const [carregando, setCarregando] = useState(true)
@@ -17,7 +20,6 @@ export default function LandingPage() {
     listarEmpresas()
       .then((data) => {
         setEmpresas(data)
-        // If there's only one company, skip straight to branch selection
         if (data.length === 1) setEmpresaSelecionada(data[0])
       })
       .catch(() => setErro('Não foi possível carregar as empresas. Verifique a conexão.'))
@@ -31,7 +33,6 @@ export default function LandingPage() {
     listarFiliaisPorEmpresa(empresaSelecionada.id)
       .then((data) => {
         setFiliais(data)
-        // If only one branch, go straight to the form
         if (data.length === 1) navigate(`/f/${data[0].slug}`)
       })
       .catch(() => setErro('Não foi possível carregar as filiais.'))
@@ -46,31 +47,19 @@ export default function LandingPage() {
 
   return (
     <div className="min-h-screen bg-canvas flex flex-col">
-      {/* Header */}
-      <header className="bg-white border-b border-slate-100 px-6 py-4 flex items-center justify-between">
-        <img
-          src="/logo-universo-wellness.png"
-          alt="Universo Wellness"
-          className="h-7 object-contain"
-          onError={(e) => { e.target.style.display = 'none' }}
-        />
-        <a href="/admin" className="text-xs text-muted hover:text-ink underline">
-          Acesso da equipe
-        </a>
-      </header>
+      <AppBar />
 
       <div className="flex-1 flex flex-col items-center justify-center px-4 py-10">
         <div className="w-full max-w-lg">
 
-          {/* Title */}
           <div className="text-center mb-8">
             <h1 className="font-display font-extrabold text-3xl sm:text-4xl text-ink">
               Sintomatologia Dolorosa
             </h1>
             <p className="text-muted mt-2">
               {!empresaSelecionada
-                ? 'Selecione sua empresa para começar.'
-                : `Selecione sua filial em ${empresaSelecionada.nome}.`}
+                ? 'Selecione a sua empresa para começar.'
+                : `Selecione a sua filial em ${empresaSelecionada.nome}.`}
             </p>
           </div>
 
@@ -91,12 +80,12 @@ export default function LandingPage() {
                 </div>
               ) : empresas.length === 0 ? (
                 <div className="bg-white rounded-2xl shadow-card p-8 text-center">
-                  <p className="text-muted">
-                    Nenhuma empresa cadastrada ainda.
-                  </p>
-                  <a href="/admin/clientes" className="text-sm text-teal-700 underline mt-2 inline-block">
-                    Cadastrar empresas
-                  </a>
+                  <p className="text-muted">Nenhuma empresa cadastrada ainda.</p>
+                  {isAdmin && (
+                    <a href="/admin/clientes" className="text-sm text-teal-700 underline mt-2 inline-block">
+                      Cadastrar empresas
+                    </a>
+                  )}
                 </div>
               ) : (
                 <div className="space-y-3">
@@ -120,9 +109,7 @@ export default function LandingPage() {
                       <span className="font-display font-semibold text-ink text-lg group-hover:text-teal-700 transition-colors">
                         {empresa.nome}
                       </span>
-                      <span className="ml-auto text-muted text-xl group-hover:text-teal-500 transition-colors">
-                        →
-                      </span>
+                      <span className="ml-auto text-muted text-xl group-hover:text-teal-500 transition-colors">→</span>
                     </button>
                   ))}
                 </div>
@@ -140,14 +127,9 @@ export default function LandingPage() {
                 ← Voltar
               </button>
 
-              {/* Company header */}
               <div className="bg-white rounded-2xl shadow-card p-4 mb-4 flex items-center gap-3">
                 {empresaSelecionada.logo_url ? (
-                  <img
-                    src={empresaSelecionada.logo_url}
-                    alt={empresaSelecionada.nome}
-                    className="h-8 max-w-[72px] object-contain flex-shrink-0"
-                  />
+                  <img src={empresaSelecionada.logo_url} alt={empresaSelecionada.nome} className="h-8 max-w-[72px] object-contain flex-shrink-0" />
                 ) : (
                   <div className="h-8 w-8 rounded-lg bg-teal-50 grid place-items-center text-teal-700 font-bold text-sm flex-shrink-0">
                     {empresaSelecionada.nome.charAt(0).toUpperCase()}
@@ -164,12 +146,12 @@ export default function LandingPage() {
                 </div>
               ) : filiais.length === 0 ? (
                 <div className="bg-white rounded-2xl shadow-card p-8 text-center">
-                  <p className="text-muted text-sm">
-                    Nenhuma filial cadastrada para esta empresa ainda.
-                  </p>
-                  <a href="/admin/clientes" className="text-sm text-teal-700 underline mt-2 inline-block">
-                    Cadastrar filiais
-                  </a>
+                  <p className="text-muted text-sm">Nenhuma filial cadastrada para esta empresa.</p>
+                  {isAdmin && (
+                    <a href="/admin/clientes" className="text-sm text-teal-700 underline mt-2 inline-block">
+                      Cadastrar filiais
+                    </a>
+                  )}
                 </div>
               ) : (
                 <div className="space-y-3">
@@ -186,14 +168,10 @@ export default function LandingPage() {
                         </svg>
                       </div>
                       <div className="flex-1">
-                        <p className="font-display font-semibold text-ink group-hover:text-teal-700 transition-colors">
-                          {filial.nome}
-                        </p>
+                        <p className="font-display font-semibold text-ink group-hover:text-teal-700 transition-colors">{filial.nome}</p>
                         <p className="text-xs text-muted font-mono mt-0.5">/f/{filial.slug}</p>
                       </div>
-                      <span className="text-muted text-xl group-hover:text-teal-500 transition-colors">
-                        →
-                      </span>
+                      <span className="text-muted text-xl group-hover:text-teal-500 transition-colors">→</span>
                     </button>
                   ))}
                 </div>
