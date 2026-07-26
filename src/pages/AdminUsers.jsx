@@ -57,12 +57,15 @@ export default function AdminUsers() {
   const carregarUtilizadores = async () => {
     setCarregando(true)
     setErro('')
+    // user_profiles is a view joining profiles + auth.users,
+    // giving us email and last_sign_in_at without needing admin privileges
     const { data, error } = await supabase
-      .from('profiles')
-      .select('id, role, created_at, auth_users:id(email, last_sign_in_at)')
+      .from('user_profiles')
+      .select('id, role, created_at, email, last_sign_in_at, invited_at')
       .order('created_at')
     if (error) {
-      // fallback: just fetch profiles without the join if it fails
+      console.error('user_profiles error:', error)
+      // fallback to plain profiles (no email visible)
       const { data: p } = await supabase.from('profiles').select('*').order('created_at')
       setUtilizadores(p ?? [])
     } else {
@@ -191,7 +194,7 @@ export default function AdminUsers() {
         <div className="bg-white rounded-2xl shadow-card overflow-hidden">
           <div className="p-4 sm:p-5 border-b border-teal-50">
             <h2 className="font-display font-semibold text-ink">
-              Utilizadores activos
+              Utilizadores ativos
               {!carregando && <span className="text-muted font-normal text-sm ml-2">({utilizadores.length})</span>}
             </h2>
           </div>
@@ -203,10 +206,10 @@ export default function AdminUsers() {
           ) : (
             <div className="divide-y divide-teal-50">
               {utilizadores.map((u) => {
-                const email = u.auth_users?.email ?? u.id
-                const lastLogin = u.auth_users?.last_sign_in_at
-                  ? new Date(u.auth_users.last_sign_in_at).toLocaleDateString('pt-BR')
-                  : '—'
+                const email = u.email ?? u.id
+                const lastLogin = u.last_sign_in_at
+                  ? new Date(u.last_sign_in_at).toLocaleDateString('pt-BR')
+                  : u.invited_at ? 'Convite pendente' : '—'
                 const isSelf = u.id === session.user.id
 
                 return (

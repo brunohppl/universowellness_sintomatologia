@@ -24,9 +24,14 @@ export async function verifyCaller(authHeader) {
 
   if (!authRes.ok) {
     const body = await authRes.json().catch(() => ({}))
+    const raw = body.msg ?? body.error_description ?? body.error ?? String(authRes.status)
+    // Session invalidated — most common after password change or schema updates
+    const isSessionGone = raw.toLowerCase().includes('session') || raw.toLowerCase().includes('jwt')
     throw {
       status: 401,
-      message: `Sessão inválida: ${body.msg ?? body.error_description ?? authRes.status}`
+      message: isSessionGone
+        ? 'A sua sessão expirou. Por favor faça logout e login novamente.'
+        : `Sessão inválida: ${raw}`
     }
   }
 

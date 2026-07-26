@@ -1,6 +1,7 @@
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import RequireAuth from './components/RequireAuth'
 import LoginPage from './pages/LoginPage'
+import AcceptInvitePage from './pages/AcceptInvitePage'
 import LandingPage from './pages/LandingPage'
 import WorkerForm from './pages/WorkerForm'
 import AdminDashboard from './pages/AdminDashboard'
@@ -13,6 +14,7 @@ export default function App() {
       <Routes>
         {/* Public */}
         <Route path="/login" element={<LoginPage />} />
+        <Route path="/invite" element={<AcceptInvitePage />} />
 
         {/* Level 1+ — all authenticated users */}
         <Route path="/" element={<RequireAuth minLevel={1}><LandingPage /></RequireAuth>} />

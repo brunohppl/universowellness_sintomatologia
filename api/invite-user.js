@@ -34,7 +34,16 @@ export default async function handler(req, res) {
       { auth: { autoRefreshToken: false, persistSession: false } }
     )
 
+    // Redirect invite links to /invite so the page can process the token
+    // before RequireAuth intercepts it. Use the request origin so this
+    // works in production, preview deploys, and local dev automatically.
+    const origin = req.headers.origin
+      ?? req.headers.referer?.split('/').slice(0, 3).join('/')
+      ?? ''
+    const redirectTo = origin ? `${origin}/invite` : undefined
+
     const { data, error } = await admin.auth.admin.inviteUserByEmail(email, {
+      redirectTo,
       data: { role }
     })
 

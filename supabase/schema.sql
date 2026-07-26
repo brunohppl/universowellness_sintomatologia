@@ -243,6 +243,27 @@ create policy "Equipe gerencia setores"
   with check (public.my_role_level() >= 3);
 
 -- ============================================================================
+-- Vista: user_profiles
+-- Junta profiles com auth.users para expor o e-mail e último acesso.
+-- Acessível apenas a superadmins (via função my_role_level).
+-- ============================================================================
+create or replace view public.user_profiles
+with (security_invoker = true)
+as
+  select
+    p.id,
+    p.role,
+    p.created_at,
+    u.email,
+    u.last_sign_in_at,
+    u.invited_at
+  from public.profiles p
+  join auth.users u on u.id = p.id;
+
+-- RLS equivalente para a view (security_invoker aplica as políticas do chamador)
+grant select on public.user_profiles to authenticated;
+
+-- ============================================================================
 -- Próximos passos:
 -- 1. Crie pelo menos um usuário da equipe em Authentication > Users > Add user.
 -- 2. Faça login em /admin, abra "Clientes" e cadastre cada empresa, suas
