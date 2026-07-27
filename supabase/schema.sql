@@ -196,7 +196,7 @@ alter table public.filiais enable row level security;
 alter table public.setores enable row level security;
 
 -- submissions: qualquer utilizador autenticado insere (workers incluídos);
--- apenas analyst e acima podem ler
+-- apenas analyst e acima podem ler; manager e acima podem eliminar
 drop policy if exists "Trabalhadores podem enviar registros" on public.submissions;
 create policy "Trabalhadores podem enviar registros"
   on public.submissions for insert to authenticated
@@ -206,6 +206,11 @@ drop policy if exists "Equipe autenticada pode ler registros" on public.submissi
 create policy "Equipe autenticada pode ler registros"
   on public.submissions for select to authenticated
   using (public.my_role_level() >= 2);
+
+drop policy if exists "Gestores podem eliminar registros" on public.submissions;
+create policy "Gestores podem eliminar registros"
+  on public.submissions for delete to authenticated
+  using (public.my_role_level() >= 3);
 
 -- empresas/filiais/setores: todos os autenticados lêem (o formulário precisa
 -- carregar a lista de setores); apenas manager e acima escrevem

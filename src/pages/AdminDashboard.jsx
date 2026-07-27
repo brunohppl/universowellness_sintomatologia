@@ -28,6 +28,20 @@ export default function AdminDashboard() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [gerandoPdf, setGerandoPdf] = useState(false)
+  const [deletandoId, setDeletandoId] = useState(null)
+
+  const handleDeletar = async (id, nomeWorker) => {
+    if (!window.confirm(`Eliminar o registo de "${nomeWorker}"? Esta acção não pode ser desfeita.`)) return
+    setDeletandoId(id)
+    const { error: err } = await supabase.from('submissions').delete().eq('id', id)
+    setDeletandoId(null)
+    if (err) {
+      setError('Não foi possível eliminar o registo.')
+      return
+    }
+    // Remove from local state so the table updates instantly without a refetch
+    setRows((prev) => prev.filter((r) => r.id !== id))
+  }
 
   const [dataInicio, setDataInicio] = useState(isoDaysAgo(30))
   const [dataFim, setDataFim] = useState(todayISO())
@@ -327,24 +341,25 @@ export default function AdminDashboard() {
                   <th className="px-4 py-3 font-semibold">Data</th>
                   <th className="px-4 py-3 font-semibold">Áreas</th>
                   <th className="px-4 py-3 font-semibold">Observações</th>
+                  <th className="px-4 py-3 font-semibold w-10"></th>
                 </tr>
               </thead>
               <tbody>
                 {loading ? (
                   <tr>
-                    <td colSpan={7} className="px-4 py-8 text-center text-muted">
+                    <td colSpan={8} className="px-4 py-8 text-center text-muted">
                       Carregando...
                     </td>
                   </tr>
                 ) : paginaAtual.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="px-4 py-8 text-center text-muted">
+                    <td colSpan={8} className="px-4 py-8 text-center text-muted">
                       Nenhum registro encontrado para os filtros selecionados.
                     </td>
                   </tr>
                 ) : (
                   paginaAtual.map((r) => (
-                    <tr key={r.id} className="border-b border-teal-50/60 hover:bg-teal-50/40">
+                    <tr key={r.id} className="border-b border-teal-50/60 hover:bg-teal-50/40 group">
                       <td className="px-4 py-3 font-medium text-ink whitespace-nowrap">{r.nome}</td>
                       <td className="px-4 py-3 whitespace-nowrap text-muted">{r.empresas?.nome ?? '—'}</td>
                       <td className="px-4 py-3 whitespace-nowrap">{r.setor}</td>
@@ -370,6 +385,25 @@ export default function AdminDashboard() {
                       </td>
                       <td className="px-4 py-3 text-muted max-w-[240px] truncate" title={r.observacoes || ''}>
                         {r.observacoes || '—'}
+                      </td>
+                      <td className="px-2 py-3">
+                        <button
+                          onClick={() => handleDeletar(r.id, r.nome)}
+                          disabled={deletandoId === r.id}
+                          title="Eliminar registo"
+                          className="opacity-0 group-hover:opacity-100 transition-opacity text-coral-400 hover:text-coral-600 disabled:opacity-40 p-1 rounded-lg hover:bg-coral-50"
+                        >
+                          {deletandoId === r.id ? (
+                            <span className="text-xs">...</span>
+                          ) : (
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <polyline points="3 6 5 6 21 6"/>
+                              <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+                              <path d="M10 11v6M14 11v6"/>
+                              <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
+                            </svg>
+                          )}
+                        </button>
                       </td>
                     </tr>
                   ))
