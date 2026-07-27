@@ -248,25 +248,45 @@ create policy "Equipe gerencia setores"
   with check (public.my_role_level() >= 3);
 
 -- ============================================================================
--- Vista: user_profiles
--- Junta profiles com auth.users para expor o e-mail e último acesso.
--- Acessível apenas a superadmins (via função my_role_level).
+-- Função: list_user_profiles()
+-- Retorna profiles + email de auth.users para superadmins.
+-- Usa security definer para poder aceder a auth.users (inacessível via RLS
+-- normal). Verifica o papel do chamador antes de devolver dados.
 -- ============================================================================
-create or replace view public.user_profiles
-with (security_invoker = true)
-as
-  select
-    p.id,
-    p.role,
-    p.created_at,
-    u.email,
-    u.last_sign_in_at,
-    u.invited_at
-  from public.profiles p
-  join auth.users u on u.id = p.id;
+drop view if exists public.user_profiles;
 
--- RLS equivalente para a view (security_invoker aplica as políticas do chamador)
-grant select on public.user_profiles to authenticated;
+create or replace function public.list_user_profiles()
+returns table(
+  id              uuid,
+  role            text,
+  created_at      timestamptz,
+  email           text,
+  last_sign_in_at timestamptz,
+  invited_at      timestamptz
+)
+language plpgsql security definer
+set search_path = public
+as $$
+begin
+  if public.my_role_level() < 4 then
+    raise exception 'Acesso negado: apenas superadmins podem listar utilizadores.';
+  end if;
+
+  return query
+    select
+      p.id,
+      p.role,
+      p.created_at,
+      u.email,
+      u.last_sign_in_at,
+      u.invited_at
+    from public.profiles p
+    join auth.users u on u.id = p.id
+    order by p.created_at;
+end;
+$$;
+
+grant execute on function public.list_user_profiles() to authenticated;
 
 -- ============================================================================
 -- Próximos passos:

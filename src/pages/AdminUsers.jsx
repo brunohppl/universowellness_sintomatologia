@@ -57,17 +57,13 @@ export default function AdminUsers() {
   const carregarUtilizadores = async () => {
     setCarregando(true)
     setErro('')
-    // user_profiles is a view joining profiles + auth.users,
-    // giving us email and last_sign_in_at without needing admin privileges
-    const { data, error } = await supabase
-      .from('user_profiles')
-      .select('id, role, created_at, email, last_sign_in_at, invited_at')
-      .order('created_at')
+    // list_user_profiles() is a security definer function that joins
+    // profiles with auth.users to expose the email field
+    const { data, error } = await supabase.rpc('list_user_profiles')
     if (error) {
-      console.error('user_profiles error:', error)
-      // fallback to plain profiles (no email visible)
-      const { data: p } = await supabase.from('profiles').select('*').order('created_at')
-      setUtilizadores(p ?? [])
+      console.error('list_user_profiles error:', error)
+      setErro('Não foi possível carregar os utilizadores. Verifique as permissões.')
+      setUtilizadores([])
     } else {
       setUtilizadores(data ?? [])
     }
