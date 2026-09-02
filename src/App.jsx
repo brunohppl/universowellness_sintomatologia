@@ -30,8 +30,10 @@ export default function App() {
         {/* Nível 3+ — gestão de empresas/filiais */}
         <Route path="/admin/clientes" element={<RequireAuth minLevel={3}><AdminClientes /></RequireAuth>} />
 
-        {/* Nível 4 — gestão de utilizadores */}
-        <Route path="/admin/utilizadores" element={<RequireAuth minLevel={4}><AdminUsers /></RequireAuth>} />
+        {/* Gestão de utilizadores — a própria página valida o nível 4 no
+            servidor. O guard fica no nível 1 para que, num sistema ainda sem
+            administrador, seja possível fazer a configuração inicial. */}
+        <Route path="/admin/utilizadores" element={<RequireAuth minLevel={1}><AdminUsers /></RequireAuth>} />
 
         {/* Redirecionamentos antigos */}
         <Route path="/admin/login" element={<Navigate to="/login" replace />} />

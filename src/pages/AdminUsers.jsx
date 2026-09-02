@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import AppBar from '../components/AppBar'
 import { useAuth } from '../lib/useAuth'
-import { supabase } from '../lib/supabaseClient'
 import { ROLES } from '../lib/roles'
 
 const ROLE_OPTIONS = [
@@ -18,11 +17,11 @@ const ROLE_BADGE = {
   superadmin: 'bg-coral-50 text-coral-700 border-coral-200'
 }
 
-async function callApi(path, body, jwt) {
+async function callApi(path, body, jwt, method = 'POST') {
   const res = await fetch(path, {
-    method: 'POST',
+    method,
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${jwt}` },
-    body: JSON.stringify(body ?? {})
+    body: method === 'GET' ? undefined : JSON.stringify(body ?? {})
   })
   // A função pode falhar antes de devolver JSON (ex: crash da serverless):
   // ler como texto primeiro evita o erro "Unexpected token 'A'".
@@ -42,11 +41,12 @@ async function callApi(path, body, jwt) {
 }
 
 export default function AdminUsers() {
-  const { session, getAccessToken } = useAuth()
+  const { session, getAccessToken, refreshRole } = useAuth()
 
   const [utilizadores, setUtilizadores] = useState([])
   const [carregando, setCarregando]     = useState(true)
   const [erroCarregar, setErroCarregar] = useState('')
+  const [podeArrancar, setPodeArrancar] = useState(false)
 
   const [mensagem, setMensagem] = useState(null) // { texto, tipo: 'erro' | 'sucesso' }
   const timerRef = useRef(null)
@@ -69,20 +69,30 @@ export default function AdminUsers() {
   const carregarUtilizadores = useCallback(async () => {
     setCarregando(true)
     setErroCarregar('')
-    const { data, error } = await supabase.rpc('list_user_profiles')
-    if (error) {
-      console.error('list_user_profiles:', error)
-      setErroCarregar(
-        error.message?.includes('function')
-          ? 'A função list_user_profiles() ainda não existe na base de dados. Execute o schema.sql no Supabase.'
-          : `Não foi possível carregar os utilizadores: ${error.message}`
-      )
+    setPodeArrancar(false)
+    try {
+      const jwt = await getAccessToken()
+      const { utilizadores: lista } = await callApi('/api/list-users', null, jwt)
+      setUtilizadores(lista ?? [])
+    } catch (err) {
       setUtilizadores([])
-    } else {
-      setUtilizadores(data ?? [])
+      // Sem permissão: verificar se ainda ninguém é administrador,
+      // caso em que oferecemos o arranque inicial.
+      try {
+        const jwt = await getAccessToken()
+        const { disponivel } = await callApi('/api/bootstrap-admin', null, jwt, 'GET')
+        if (disponivel) {
+          setPodeArrancar(true)
+          setErroCarregar('')
+        } else {
+          setErroCarregar(err.message)
+        }
+      } catch {
+        setErroCarregar(err.message)
+      }
     }
     setCarregando(false)
-  }, [])
+  }, [getAccessToken])
 
   useEffect(() => { if (session) carregarUtilizadores() }, [session, carregarUtilizadores])
 
@@ -117,14 +127,29 @@ export default function AdminUsers() {
 
   const handleMudarRole = async (userId, novoRole) => {
     setOcupadoId(userId)
-    const { error } = await supabase.from('profiles').update({ role: novoRole }).eq('id', userId)
-    setOcupadoId(null)
-    if (error) {
-      flash(`Não foi possível alterar o papel: ${error.message}`, 'erro')
-    } else {
+    try {
+      const jwt = await getAccessToken()
+      await callApi('/api/set-user-role', { userId, role: novoRole }, jwt)
       setUtilizadores((prev) => prev.map((u) => (u.id === userId ? { ...u, role: novoRole } : u)))
       flash('Papel atualizado.')
+    } catch (err) {
+      flash(err.message, 'erro')
     }
+    setOcupadoId(null)
+  }
+
+  const handleArrancar = async () => {
+    setOcupadoId('bootstrap')
+    try {
+      const jwt = await getAccessToken()
+      await callApi('/api/bootstrap-admin', null, jwt)
+      await refreshRole()
+      flash('É agora administrador. A carregar utilizadores...')
+      await carregarUtilizadores()
+    } catch (err) {
+      flash(err.message, 'erro')
+    }
+    setOcupadoId(null)
   }
 
   const handleRemover = async (userId, email) => {
@@ -164,8 +189,25 @@ export default function AdminUsers() {
           </div>
         )}
 
+        {podeArrancar && (
+          <div className="bg-white rounded-2xl shadow-card p-5 sm:p-6 border-2 border-coral-300">
+            <h2 className="font-display font-semibold text-ink mb-1">Configuração inicial</h2>
+            <p className="text-sm text-muted mb-4">
+              Ainda não existe nenhum administrador neste sistema. Como já tem uma conta,
+              pode assumir esse papel agora — só é possível uma vez.
+            </p>
+            <button
+              onClick={handleArrancar}
+              disabled={ocupadoId === 'bootstrap'}
+              className="bg-coral-500 hover:bg-coral-600 disabled:opacity-60 text-white font-semibold text-sm px-5 py-2.5 rounded-xl transition-colors"
+            >
+              {ocupadoId === 'bootstrap' ? 'A configurar...' : 'Tornar-me administrador'}
+            </button>
+          </div>
+        )}
+
         {/* Convidar */}
-        <div className="bg-white rounded-2xl shadow-card p-5 sm:p-6">
+        <div className={`bg-white rounded-2xl shadow-card p-5 sm:p-6 ${podeArrancar ? 'opacity-40 pointer-events-none' : ''}`}>
           <h2 className="font-display font-semibold text-ink mb-1">Convidar utilizador</h2>
           <p className="text-sm text-muted mb-4">
             O utilizador recebe um e-mail com um link para definir a sua senha e aceder à plataforma.
