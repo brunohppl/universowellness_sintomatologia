@@ -5,10 +5,10 @@ import { canManageData, canManageUsers, canViewResults, ROLE_LEVEL } from './rol
 const AuthContext = createContext(null)
 
 /**
- * Fonte única de verdade para sessão + papel do utilizador.
- * Antes, cada componente chamava useAuth() e criava a sua própria cópia do
- * estado, o seu próprio listener e a sua própria consulta à tabela profiles
- * — três cópias só na página de Utilizadores, que podiam discordar entre si.
+ * Fonte única de verdade para sessão + permissão do usuário.
+ * Antes, cada componente chamava useAuth() e criava sua própria cópia do
+ * estado, seu próprio listener e sua própria consulta à tabela profiles
+ * — três cópias só na página de Usuários, que podiam discordar entre si.
  * Agora existe apenas uma instância, partilhada por toda a app.
  */
 export function AuthProvider({ children }) {
@@ -23,7 +23,7 @@ export function AuthProvider({ children }) {
       .eq('id', userId)
       .maybeSingle()
     if (error) {
-      console.error('Erro ao carregar o papel do utilizador:', error)
+      console.error('Erro ao carregar a permissão do usuário:', error)
       setRole('worker')
       return
     }
@@ -46,14 +46,14 @@ export function AuthProvider({ children }) {
   /**
    * Devolve sempre um access_token válido.
    * O token guardado em `session` pode estar expirado — o Supabase renova-o
-   * em segundo plano, mas a cópia no estado do React fica desactualizada.
+   * em segundo plano, mas a cópia no estado do React fica desatualizada.
    * Era esta a causa do erro "Sessão inválida" que só desaparecia após
    * logout/login. Aqui pedimos sempre a sessão actual antes de chamar a API.
    */
   const getAccessToken = useCallback(async () => {
     const { data, error } = await supabase.auth.getSession()
     if (error || !data.session) {
-      throw new Error('A sua sessão expirou. Faça login novamente.')
+      throw new Error('Sua sessão expirou. Faça login novamente.')
     }
     return data.session.access_token
   }, [])

@@ -2,7 +2,7 @@ import { createClient } from '@supabase/supabase-js'
 import { verifyCaller } from './_verify-caller.js'
 
 /**
- * Altera o papel de um utilizador. Feito no servidor com a service role key
+ * Altera a permissão de um usuário. Feito no servidor com a service role key
  * para não depender das políticas RLS da tabela profiles.
  */
 export default async function handler(req, res) {
@@ -20,20 +20,20 @@ export default async function handler(req, res) {
     const { userId: callerId, role: callerRole } = await verifyCaller(req.headers.authorization)
 
     if (callerRole !== 'superadmin') {
-      return res.status(403).json({ error: 'Apenas administradores podem alterar papéis.' })
+      return res.status(403).json({ error: 'Apenas administradores podem alterar permissões.' })
     }
 
     const { userId, role } = req.body ?? {}
     const validRoles = ['worker', 'analyst', 'manager', 'superadmin']
 
     if (!userId || !validRoles.includes(role)) {
-      return res.status(400).json({ error: 'userId e papel válido são obrigatórios.' })
+      return res.status(400).json({ error: 'userId e permissão válida são obrigatórios.' })
     }
 
     // Impede que um administrador se despromova e deixe o sistema sem acesso
     if (userId === callerId && role !== 'superadmin') {
       return res.status(400).json({
-        error: 'Não pode alterar o seu próprio papel. Peça a outro administrador.'
+        error: 'Você não pode alterar sua própria permissão. Peça a outro administrador.'
       })
     }
 

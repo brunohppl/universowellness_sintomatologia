@@ -1,11 +1,11 @@
-// Definição centralizada dos papéis de utilizador.
+// Definição centralizada dos permissões de usuário.
 // Qualquer alteração aqui reflecte-se automaticamente em todo o app.
 
 export const ROLES = {
   WORKER:     'worker',     // nível 1 — formulários
   ANALYST:    'analyst',    // nível 2 — + painel de resultados
   MANAGER:    'manager',    // nível 3 — + gestão de empresas/filiais
-  SUPERADMIN: 'superadmin'  // nível 4 — + gestão de utilizadores
+  SUPERADMIN: 'superadmin'  // nível 4 — + gestão de usuários
 }
 
 export const ROLE_LEVEL = {
@@ -16,13 +16,13 @@ export const ROLE_LEVEL = {
 }
 
 export const ROLE_LABELS = {
-  worker:     'Utilizador — apenas formulários',
+  worker:     'Usuário — apenas formulários',
   analyst:    'Analista — resultados e relatórios',
   manager:    'Gestor — empresas e filiais',
   superadmin: 'Administrador — acesso total'
 }
 
-// Retorna true se o papel do utilizador for suficiente para o nível exigido
+// Retorna true se a permissão do usuário for suficiente para o nível exigido
 export function hasLevel(userRole, requiredLevel) {
   return (ROLE_LEVEL[userRole] ?? 0) >= requiredLevel
 }

@@ -18,14 +18,14 @@ export default async function handler(req, res) {
     const { role: callerRole } = await verifyCaller(req.headers.authorization)
 
     if (callerRole !== 'superadmin') {
-      return res.status(403).json({ error: 'Apenas administradores podem convidar utilizadores.' })
+      return res.status(403).json({ error: 'Apenas administradores podem convidar usuários.' })
     }
 
     const { email, role } = req.body ?? {}
     const validRoles = ['worker', 'analyst', 'manager', 'superadmin']
 
     if (!email || !validRoles.includes(role)) {
-      return res.status(400).json({ error: 'E-mail e papel (role) válidos são obrigatórios.' })
+      return res.status(400).json({ error: 'E-mail e permissão válidos são obrigatórios.' })
     }
 
     const admin = createClient(

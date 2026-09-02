@@ -30,13 +30,13 @@ export async function verifyCaller(authHeader) {
     throw {
       status: 401,
       message: isSessionGone
-        ? 'A sua sessão expirou. Por favor faça logout e login novamente.'
+        ? 'Sua sessão expirou. Por favor, saia e entre novamente.'
         : `Sessão inválida: ${raw}`
     }
   }
 
   const userData = await authRes.json()
-  if (!userData?.id) throw { status: 401, message: 'Utilizador não encontrado.' }
+  if (!userData?.id) throw { status: 401, message: 'Usuário não encontrado.' }
 
   // Look up their role in profiles using the admin client (bypasses RLS)
   const admin = createClient(

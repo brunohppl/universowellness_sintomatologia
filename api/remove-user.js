@@ -20,7 +20,7 @@ export default async function handler(req, res) {
     const { userId: callerId, role: callerRole } = await verifyCaller(req.headers.authorization)
 
     if (callerRole !== 'superadmin') {
-      return res.status(403).json({ error: 'Apenas administradores podem remover utilizadores.' })
+      return res.status(403).json({ error: 'Apenas administradores podem remover usuários.' })
     }
 
     // Aceita o id no corpo ou na query string
@@ -28,7 +28,7 @@ export default async function handler(req, res) {
     if (!userId) return res.status(400).json({ error: 'userId é obrigatório.' })
 
     if (userId === callerId) {
-      return res.status(400).json({ error: 'Não pode remover a sua própria conta.' })
+      return res.status(400).json({ error: 'Você não pode remover sua própria conta.' })
     }
 
     const admin = createClient(

@@ -4,7 +4,7 @@ import { useAuth } from '../lib/useAuth'
 import { ROLES } from '../lib/roles'
 
 const ROLE_OPTIONS = [
-  { value: ROLES.WORKER,     label: 'Utilizador — formulários' },
+  { value: ROLES.WORKER,     label: 'Usuário — formulários' },
   { value: ROLES.ANALYST,    label: 'Analista — resultados' },
   { value: ROLES.MANAGER,    label: 'Gestor — empresas/filiais' },
   { value: ROLES.SUPERADMIN, label: 'Administrador — acesso total' }
@@ -32,7 +32,7 @@ async function callApi(path, body, jwt, method = 'POST') {
   } catch {
     throw new Error(
       res.status === 404
-        ? 'Endpoint não encontrado. A aplicação pode não estar totalmente publicada.'
+        ? 'Endpoint não encontrado. O aplicativo pode não estar totalmente publicado.'
         : `Resposta inesperada do servidor (${res.status}).`
     )
   }
@@ -43,7 +43,7 @@ async function callApi(path, body, jwt, method = 'POST') {
 export default function AdminUsers() {
   const { session, getAccessToken, refreshRole } = useAuth()
 
-  const [utilizadores, setUtilizadores] = useState([])
+  const [usuários, setUsuários] = useState([])
   const [carregando, setCarregando]     = useState(true)
   const [erroCarregar, setErroCarregar] = useState('')
   const [podeArrancar, setPodeArrancar] = useState(false)
@@ -66,16 +66,16 @@ export default function AdminUsers() {
 
   useEffect(() => () => { if (timerRef.current) clearTimeout(timerRef.current) }, [])
 
-  const carregarUtilizadores = useCallback(async () => {
+  const carregarUsuários = useCallback(async () => {
     setCarregando(true)
     setErroCarregar('')
     setPodeArrancar(false)
     try {
       const jwt = await getAccessToken()
-      const { utilizadores: lista } = await callApi('/api/list-users', null, jwt)
-      setUtilizadores(lista ?? [])
+      const { usuários: lista } = await callApi('/api/list-users', null, jwt)
+      setUsuários(lista ?? [])
     } catch (err) {
-      setUtilizadores([])
+      setUsuários([])
       // Sem permissão: verificar se ainda ninguém é administrador,
       // caso em que oferecemos o arranque inicial.
       try {
@@ -94,7 +94,7 @@ export default function AdminUsers() {
     setCarregando(false)
   }, [getAccessToken])
 
-  useEffect(() => { if (session) carregarUtilizadores() }, [session, carregarUtilizadores])
+  useEffect(() => { if (session) carregarUsuários() }, [session, carregarUsuários])
 
   const handleConvidar = async (e) => {
     e.preventDefault()
@@ -106,7 +106,7 @@ export default function AdminUsers() {
       flash(`Convite enviado para ${inviteEmail.trim()}.`)
       setInviteEmail('')
       setInviteRole(ROLES.WORKER)
-      await carregarUtilizadores()
+      await carregarUsuários()
     } catch (err) {
       flash(err.message, 'erro')
     }
@@ -130,8 +130,8 @@ export default function AdminUsers() {
     try {
       const jwt = await getAccessToken()
       await callApi('/api/set-user-role', { userId, role: novoRole }, jwt)
-      setUtilizadores((prev) => prev.map((u) => (u.id === userId ? { ...u, role: novoRole } : u)))
-      flash('Papel atualizado.')
+      setUsuários((prev) => prev.map((u) => (u.id === userId ? { ...u, role: novoRole } : u)))
+      flash('Permissão atualizada.')
     } catch (err) {
       flash(err.message, 'erro')
     }
@@ -144,8 +144,8 @@ export default function AdminUsers() {
       const jwt = await getAccessToken()
       await callApi('/api/bootstrap-admin', null, jwt)
       await refreshRole()
-      flash('É agora administrador. A carregar utilizadores...')
-      await carregarUtilizadores()
+      flash('Você agora é administrador. Carregando usuários...')
+      await carregarUsuários()
     } catch (err) {
       flash(err.message, 'erro')
     }
@@ -153,13 +153,13 @@ export default function AdminUsers() {
   }
 
   const handleRemover = async (userId, email) => {
-    if (!window.confirm(`Remover o utilizador "${email}"? Esta ação não pode ser desfeita.`)) return
+    if (!window.confirm(`Remover o usuário "${email}"? Esta ação não pode ser desfeita.`)) return
     setOcupadoId(userId)
     try {
       const jwt = await getAccessToken()
       await callApi('/api/remove-user', { userId }, jwt)
-      setUtilizadores((prev) => prev.filter((u) => u.id !== userId))
-      flash('Utilizador removido.')
+      setUsuários((prev) => prev.filter((u) => u.id !== userId))
+      flash('Usuário removido.')
     } catch (err) {
       flash(err.message, 'erro')
     }
@@ -172,7 +172,7 @@ export default function AdminUsers() {
     <div className="min-h-screen bg-canvas">
       <AppBar />
       <div className="px-2 py-3 bg-white border-b border-teal-50">
-        <h1 className="font-display font-extrabold text-lg text-ink px-4 sm:px-8">Utilizadores</h1>
+        <h1 className="font-display font-extrabold text-lg text-ink px-4 sm:px-8">Usuários</h1>
       </div>
 
       <main className="px-4 sm:px-8 py-6 max-w-4xl mx-auto space-y-6">
@@ -193,24 +193,24 @@ export default function AdminUsers() {
           <div className="bg-white rounded-2xl shadow-card p-5 sm:p-6 border-2 border-coral-300">
             <h2 className="font-display font-semibold text-ink mb-1">Configuração inicial</h2>
             <p className="text-sm text-muted mb-4">
-              Ainda não existe nenhum administrador neste sistema. Como já tem uma conta,
-              pode assumir esse papel agora — só é possível uma vez.
+              Ainda não existe nenhum administrador neste sistema. Como você já tem uma conta,
+              pode assumir essa função agora — isso só é possível uma vez.
             </p>
             <button
               onClick={handleArrancar}
               disabled={ocupadoId === 'bootstrap'}
               className="bg-coral-500 hover:bg-coral-600 disabled:opacity-60 text-white font-semibold text-sm px-5 py-2.5 rounded-xl transition-colors"
             >
-              {ocupadoId === 'bootstrap' ? 'A configurar...' : 'Tornar-me administrador'}
+              {ocupadoId === 'bootstrap' ? 'Configurando...' : 'Tornar-me administrador'}
             </button>
           </div>
         )}
 
         {/* Convidar */}
         <div className={`bg-white rounded-2xl shadow-card p-5 sm:p-6 ${podeArrancar ? 'opacity-40 pointer-events-none' : ''}`}>
-          <h2 className="font-display font-semibold text-ink mb-1">Convidar utilizador</h2>
+          <h2 className="font-display font-semibold text-ink mb-1">Convidar usuário</h2>
           <p className="text-sm text-muted mb-4">
-            O utilizador recebe um e-mail com um link para definir a sua senha e aceder à plataforma.
+            O usuário recebe um e-mail com um link para definir sua senha e acessar a plataforma.
           </p>
           <form onSubmit={handleConvidar} className="grid sm:grid-cols-[1fr_auto_auto] gap-3">
             <input
@@ -235,7 +235,7 @@ export default function AdminUsers() {
               disabled={enviandoConvite}
               className="bg-coral-500 hover:bg-coral-600 disabled:opacity-60 text-white font-semibold text-sm px-5 py-2.5 rounded-xl transition-colors whitespace-nowrap"
             >
-              {enviandoConvite ? 'A enviar...' : 'Enviar convite'}
+              {enviandoConvite ? 'Enviando...' : 'Enviar convite'}
             </button>
           </form>
         </div>
@@ -244,13 +244,13 @@ export default function AdminUsers() {
         <div className="bg-white rounded-2xl shadow-card overflow-hidden">
           <div className="p-4 sm:p-5 border-b border-teal-50 flex items-center justify-between">
             <h2 className="font-display font-semibold text-ink">
-              Utilizadores ativos
+              Usuários ativos
               {!carregando && !erroCarregar && (
-                <span className="text-muted font-normal text-sm ml-2">({utilizadores.length})</span>
+                <span className="text-muted font-normal text-sm ml-2">({usuários.length})</span>
               )}
             </h2>
             <button
-              onClick={carregarUtilizadores}
+              onClick={carregarUsuários}
               className="text-xs font-semibold text-teal-700 hover:text-teal-600 px-2 py-1"
             >
               Atualizar
@@ -258,18 +258,18 @@ export default function AdminUsers() {
           </div>
 
           {carregando ? (
-            <div className="p-8 text-center text-muted text-sm">A carregar...</div>
+            <div className="p-8 text-center text-muted text-sm">Carregando...</div>
           ) : erroCarregar ? (
             <div className="p-6">
               <div className="bg-coral-50 border border-coral-300 text-coral-700 rounded-xl px-4 py-3 text-sm">
                 {erroCarregar}
               </div>
             </div>
-          ) : utilizadores.length === 0 ? (
-            <div className="p-8 text-center text-muted text-sm italic">Nenhum utilizador encontrado.</div>
+          ) : usuários.length === 0 ? (
+            <div className="p-8 text-center text-muted text-sm italic">Nenhum usuário encontrado.</div>
           ) : (
             <div className="divide-y divide-teal-50">
-              {utilizadores.map((u) => {
+              {usuários.map((u) => {
                 const email      = u.email ?? u.id
                 const pendente   = !u.last_sign_in_at
                 const ultimo     = u.last_sign_in_at
@@ -291,7 +291,7 @@ export default function AdminUsers() {
                       </p>
                       <p className="text-xs text-muted">
                         {pendente ? (
-                          <span className="text-amber-600">Convite pendente — ainda não acedeu</span>
+                          <span className="text-amber-600">Convite pendente — ainda não acessou</span>
                         ) : (
                           <>Último acesso: {ultimo}</>
                         )}
@@ -302,7 +302,7 @@ export default function AdminUsers() {
                       value={u.role}
                       disabled={isSelf || ocupado}
                       onChange={(e) => handleMudarRole(u.id, e.target.value)}
-                      title={isSelf ? 'Não pode alterar o seu próprio papel' : 'Alterar papel'}
+                      title={isSelf ? 'Você não pode alterar sua própria permissão' : 'Alterar permissão'}
                       className={`text-xs font-semibold rounded-full px-2.5 py-1.5 border outline-none disabled:opacity-60 disabled:cursor-not-allowed ${ROLE_BADGE[u.role] ?? 'bg-slate-100 border-slate-200'}`}
                     >
                       {ROLE_OPTIONS.map((o) => (
@@ -350,7 +350,7 @@ export default function AdminUsers() {
             ))}
           </div>
           <p className="text-xs text-muted mt-3">
-            Cada nível inclui tudo do nível anterior. Não pode alterar nem remover a sua própria conta —
+            Cada nível inclui tudo do nível anterior. Você não pode alterar nem remover sua própria conta —
             peça a outro administrador.
           </p>
         </div>

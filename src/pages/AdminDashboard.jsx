@@ -31,12 +31,12 @@ export default function AdminDashboard() {
   const [deletandoId, setDeletandoId] = useState(null)
 
   const handleDeletar = async (id, nomeWorker) => {
-    if (!window.confirm(`Eliminar o registo de "${nomeWorker}"? Esta acção não pode ser desfeita.`)) return
+    if (!window.confirm(`Excluir o registro de "${nomeWorker}"? Esta ação não pode ser desfeita.`)) return
     setDeletandoId(id)
     const { error: err } = await supabase.from('submissions').delete().eq('id', id)
     setDeletandoId(null)
     if (err) {
-      setError('Não foi possível eliminar o registo.')
+      setError('Não foi possível excluir o registro.')
       return
     }
     // Remove from local state so the table updates instantly without a refetch
@@ -390,7 +390,7 @@ export default function AdminDashboard() {
                         <button
                           onClick={() => handleDeletar(r.id, r.nome)}
                           disabled={deletandoId === r.id}
-                          title="Eliminar registo"
+                          title="Excluir registro"
                           className="opacity-0 group-hover:opacity-100 transition-opacity text-coral-400 hover:text-coral-600 disabled:opacity-40 p-1 rounded-lg hover:bg-coral-50"
                         >
                           {deletandoId === r.id ? (

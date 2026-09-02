@@ -44,7 +44,7 @@ export default function LoginPage() {
           Bem-vindo
         </h1>
         <p className="text-sm text-muted text-center mb-6">
-          Inicie sessão para continuar
+          Entre para continuar
         </p>
 
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -94,8 +94,8 @@ export default function LoginPage() {
         </form>
 
         <p className="text-xs text-muted text-center mt-6">
-          Contas de acesso são criadas pela equipa Universo Wellness.
-          <br />Fale com o seu responsável se precisar de acesso.
+          As contas de acesso são criadas pela equipe da Universo Wellness.
+          <br />Fale com seu responsável se precisar de acesso.
         </p>
       </div>
     </div>

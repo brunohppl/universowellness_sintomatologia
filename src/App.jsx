@@ -19,9 +19,9 @@ export default function App() {
         {/* Formulário partilhado por link — qualquer pessoa pode preencher */}
         <Route path="/f/:slug" element={<WorkerForm />} />
 
-        {/* ---- Área da equipa — requer login ---- */}
+        {/* ---- Área da equipe — requer login ---- */}
 
-        {/* Nível 1+ — selector de empresa/filial (entrada da equipa) */}
+        {/* Nível 1+ — seletor de empresa/filial (entrada da equipe) */}
         <Route path="/" element={<RequireAuth minLevel={1}><LandingPage /></RequireAuth>} />
 
         {/* Nível 2+ — painel de resultados */}
@@ -30,10 +30,10 @@ export default function App() {
         {/* Nível 3+ — gestão de empresas/filiais */}
         <Route path="/admin/clientes" element={<RequireAuth minLevel={3}><AdminClientes /></RequireAuth>} />
 
-        {/* Gestão de utilizadores — a própria página valida o nível 4 no
+        {/* Gestão de usuários — a própria página valida o nível 4 no
             servidor. O guard fica no nível 1 para que, num sistema ainda sem
             administrador, seja possível fazer a configuração inicial. */}
-        <Route path="/admin/utilizadores" element={<RequireAuth minLevel={1}><AdminUsers /></RequireAuth>} />
+        <Route path="/admin/usuários" element={<RequireAuth minLevel={1}><AdminUsers /></RequireAuth>} />
 
         {/* Redirecionamentos antigos */}
         <Route path="/admin/login" element={<Navigate to="/login" replace />} />

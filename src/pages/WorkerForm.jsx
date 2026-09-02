@@ -140,7 +140,7 @@ export default function WorkerForm() {
           <div className="bg-white rounded-3xl shadow-card p-10 max-w-md text-center">
             <h1 className="font-display font-extrabold text-xl text-ink mb-2">Link não encontrado</h1>
             <p className="text-muted">
-              Este link não corresponde a nenhuma filial cadastrada. Confirme o endereço ou contacte a equipa da
+              Este link não corresponde a nenhuma filial cadastrada. Confirme o endereço ou entre em contato com a equipe da
               Universo Wellness.
             </p>
             <a href="/" className="text-sm text-teal-700 underline mt-4 inline-block">← Voltar à seleção</a>

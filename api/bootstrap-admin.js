@@ -10,7 +10,7 @@ import { verifyCaller } from './_verify-caller.js'
  * resolve isso sem obrigar a ir ao SQL do Supabase.
  *
  * É seguro porque só funciona uma vez: assim que existir um superadmin,
- * qualquer chamada seguinte é recusada. A partir daí, os papéis são geridos
+ * qualquer chamada seguinte é recusada. A partir daí, os permissões são geridos
  * normalmente por /api/set-user-role.
  *
  * GET  → indica se o arranque ainda está disponível
@@ -26,7 +26,7 @@ export default async function handler(req, res) {
   }
 
   try {
-    // Requer sessão válida — só contas já criadas pela equipa podem chamar isto
+    // Requer sessão válida — só contas já criadas pela equipe podem chamar isso
     const { userId: callerId } = await verifyCaller(req.headers.authorization)
 
     const admin = createClient(
@@ -54,7 +54,7 @@ export default async function handler(req, res) {
 
     if (!disponivel) {
       return res.status(403).json({
-        error: 'Já existe um administrador no sistema. Peça-lhe que lhe atribua permissões.'
+        error: 'Já existe um administrador no sistema. Peça a ele para atribuir suas permissões.'
       })
     }
 

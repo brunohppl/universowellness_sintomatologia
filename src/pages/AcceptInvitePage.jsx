@@ -82,7 +82,7 @@ export default function AcceptInvitePage() {
         {step === 'loading' && (
           <div className="text-center py-4">
             <div className="w-8 h-8 rounded-full border-2 border-teal-500 border-t-transparent animate-spin mx-auto mb-4" />
-            <p className="text-muted text-sm">A validar o convite...</p>
+            <p className="text-muted text-sm">Validando o convite...</p>
           </div>
         )}
 
@@ -104,7 +104,7 @@ export default function AcceptInvitePage() {
               Bem-vindo
             </h1>
             <p className="text-sm text-muted text-center mb-6">
-              Defina uma senha para a sua conta<br />
+              Defina uma senha para sua conta<br />
               <span className="font-medium text-ink">{email}</span>
             </p>
 
@@ -150,7 +150,7 @@ export default function AcceptInvitePage() {
                 disabled={salvando}
                 className="w-full bg-teal-700 hover:bg-teal-600 disabled:opacity-60 text-white font-display font-semibold py-3 rounded-xl transition-colors"
               >
-                {salvando ? 'A guardar...' : 'Entrar na plataforma'}
+                {salvando ? 'Salvando...' : 'Entrar na plataforma'}
               </button>
             </form>
           </>

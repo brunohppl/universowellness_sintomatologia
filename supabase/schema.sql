@@ -10,15 +10,15 @@
 create extension if not exists "pgcrypto";
 
 -- ----------------------------------------------------------------------------
--- Perfis de utilizador — 4 níveis de acesso
+-- Perfis de usuário — 4 níveis de acesso
 --   worker     (1) — formulários apenas
 --   analyst    (2) — + painel de resultados e exportações
 --   manager    (3) — + gestão de empresas/filiais/setores
---   superadmin (4) — + gestão de utilizadores
+--   superadmin (4) — + gestão de usuários
 --
--- O papel é definido no convite (via /api/invite-user) ou editado directamente
+-- A permissão é definido no convite (via /api/invite-user) ou editado directamente
 -- na tabela profiles pelo superadmin. O trigger abaixo cria o perfil
--- automaticamente para cada novo utilizador adicionado ao Supabase Auth.
+-- automaticamente para cada novo usuário adicionado ao Supabase Auth.
 -- ----------------------------------------------------------------------------
 create table if not exists public.profiles (
   id         uuid primary key references auth.users(id) on delete cascade,
@@ -26,7 +26,7 @@ create table if not exists public.profiles (
   created_at timestamptz not null default now()
 );
 
--- Migrar papéis antigos ANTES de adicionar a nova constraint.
+-- Migrar permissões antigos ANTES de adicionar a nova constraint.
 -- (se a constraint já existe com os valores antigos, removê-la primeiro)
 alter table public.profiles drop constraint if exists profiles_role_check;
 
@@ -43,9 +43,9 @@ alter table public.profiles
   check (role in ('worker', 'analyst', 'manager', 'superadmin'));
 
 comment on table public.profiles is
-  'Papéis dos utilizadores. worker(1) analyst(2) manager(3) superadmin(4).';
+  'Permissões dos usuários. worker(1) analyst(2) manager(3) superadmin(4).';
 
--- Função auxiliar: retorna o nível numérico do utilizador actual.
+-- Função auxiliar: retorna o nível numérico do usuário actual.
 -- Usada nas políticas RLS para evitar repetição.
 create or replace function public.my_role_level()
 returns int language sql security definer stable as $$
@@ -58,8 +58,8 @@ returns int language sql security definer stable as $$
   end
 $$;
 
--- Trigger: cria automaticamente um perfil quando um novo utilizador
--- é adicionado ao Supabase Auth. O papel vem do campo user_metadata.role
+-- Trigger: cria automaticamente um perfil quando um novo usuário
+-- é adicionado ao Supabase Auth. A permissão vem do campo user_metadata.role
 -- definido no convite; se ausente, fica 'worker' por omissão.
 create or replace function public.handle_new_user()
 returns trigger language plpgsql security definer set search_path = public as $$
@@ -67,7 +67,7 @@ declare
   requested_role text;
 begin
   requested_role := coalesce(new.raw_user_meta_data->>'role', 'worker');
-  -- Garantir que só papéis válidos entram na tabela
+  -- Garantir que só permissões válidos entram na tabela
   if requested_role not in ('worker', 'analyst', 'manager', 'superadmin') then
     requested_role := 'worker';
   end if;
@@ -85,19 +85,19 @@ create trigger on_auth_user_created
 
 alter table public.profiles enable row level security;
 
--- Cada utilizador lê o seu próprio perfil (necessário para o app descobrir o papel)
-drop policy if exists "Utilizador lê o próprio perfil" on public.profiles;
-create policy "Utilizador lê o próprio perfil"
+-- Cada usuário lê o seu próprio perfil (necessário para o app descobrir a permissão)
+drop policy if exists "Usuário lê o próprio perfil" on public.profiles;
+create policy "Usuário lê o próprio perfil"
   on public.profiles for select to authenticated
   using (auth.uid() = id);
 
--- Superadmin lê todos os perfis (página de utilizadores)
+-- Superadmin lê todos os perfis (página de usuários)
 drop policy if exists "Superadmin lê todos os perfis" on public.profiles;
 create policy "Superadmin lê todos os perfis"
   on public.profiles for select to authenticated
   using (public.my_role_level() >= 4);
 
--- Superadmin actualiza papéis (mas não o seu próprio, para evitar bloqueio acidental)
+-- Superadmin atualiza permissões (mas não a própria, para evitar bloqueio acidental)
 drop policy if exists "Superadmin gere perfis" on public.profiles;
 create policy "Superadmin gere perfis"
   on public.profiles for update to authenticated
@@ -195,9 +195,9 @@ alter table public.empresas enable row level security;
 alter table public.filiais enable row level security;
 alter table public.setores enable row level security;
 
--- submissions: QUALQUER pessoa (mesmo sem login) pode enviar um registo —
+-- submissions: QUALQUER pessoa (mesmo sem login) pode enviar um registro —
 -- os formulários são públicos, partilhados por link.
--- Apenas analyst (2) e acima podem LER; manager (3) e acima podem eliminar.
+-- Apenas analyst (2) e acima podem LER; manager (3) e acima podem excluir.
 drop policy if exists "Trabalhadores podem enviar registros" on public.submissions;
 create policy "Trabalhadores podem enviar registros"
   on public.submissions for insert to anon, authenticated
@@ -208,8 +208,8 @@ create policy "Equipe autenticada pode ler registros"
   on public.submissions for select to authenticated
   using (public.my_role_level() >= 2);
 
-drop policy if exists "Gestores podem eliminar registros" on public.submissions;
-create policy "Gestores podem eliminar registros"
+drop policy if exists "Gestores podem excluir registros" on public.submissions;
+create policy "Gestores podem excluir registros"
   on public.submissions for delete to authenticated
   using (public.my_role_level() >= 3);
 
@@ -252,8 +252,8 @@ create policy "Equipe gerencia setores"
 -- ============================================================================
 -- Função: list_user_profiles()
 -- Retorna profiles + email de auth.users para superadmins.
--- Usa security definer para poder aceder a auth.users (inacessível via RLS
--- normal). Verifica o papel do chamador antes de devolver dados.
+-- Usa security definer para poder acessar a auth.users (inacessível via RLS
+-- normal). Verifica a permissão do chamador antes de devolver dados.
 -- ============================================================================
 drop view if exists public.user_profiles;
 
@@ -271,7 +271,7 @@ set search_path = public
 as $$
 begin
   if public.my_role_level() < 4 then
-    raise exception 'Acesso negado: apenas superadmins podem listar utilizadores.';
+    raise exception 'Acesso negado: apenas superadmins podem listar usuários.';
   end if;
 
   return query

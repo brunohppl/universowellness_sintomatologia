@@ -69,8 +69,8 @@ export default function AppBar() {
             </a>
           )}
           {canManageUsers && (
-            <a href="/admin/utilizadores" className="text-sm font-medium text-muted hover:text-ink px-2 py-1.5 rounded-lg hover:bg-slate-50 transition-colors hidden sm:inline">
-              Utilizadores
+            <a href="/admin/usuários" className="text-sm font-medium text-muted hover:text-ink px-2 py-1.5 rounded-lg hover:bg-slate-50 transition-colors hidden sm:inline">
+              Usuários
             </a>
           )}
 

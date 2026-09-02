@@ -43,7 +43,7 @@ export default function ChangePasswordModal({ onClose }) {
           <>
             <div className="w-12 h-12 rounded-full bg-leaf-500 grid place-items-center text-white text-2xl mx-auto mb-4">✓</div>
             <h2 className="font-display font-extrabold text-xl text-ink text-center mb-2">Senha alterada</h2>
-            <p className="text-muted text-sm text-center mb-6">A sua senha foi actualizada com sucesso.</p>
+            <p className="text-muted text-sm text-center mb-6">Sua senha foi atualizada com sucesso.</p>
             <button
               onClick={onClose}
               className="w-full bg-teal-700 hover:bg-teal-600 text-white font-semibold py-3 rounded-xl transition-colors"
@@ -108,7 +108,7 @@ export default function ChangePasswordModal({ onClose }) {
                   disabled={salvando}
                   className="flex-1 bg-teal-700 hover:bg-teal-600 disabled:opacity-60 text-white font-semibold py-3 rounded-xl transition-colors"
                 >
-                  {salvando ? 'A guardar...' : 'Guardar'}
+                  {salvando ? 'Salvando...' : 'Guardar'}
                 </button>
               </div>
             </form>

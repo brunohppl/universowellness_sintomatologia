@@ -2,7 +2,7 @@ import { createClient } from '@supabase/supabase-js'
 import { verifyCaller } from './_verify-caller.js'
 
 /**
- * Lista todos os utilizadores com o seu papel e último acesso.
+ * Lista todos os usuários com o sua permissão e último acesso.
  * Usa a service role key no servidor, por isso não depende de funções
  * RPC nem de políticas RLS na base de dados — basta o schema base.
  */
@@ -23,7 +23,7 @@ export default async function handler(req, res) {
     const { role: callerRole } = await verifyCaller(req.headers.authorization)
 
     if (callerRole !== 'superadmin') {
-      return res.status(403).json({ error: 'Apenas administradores podem listar utilizadores.' })
+      return res.status(403).json({ error: 'Apenas administradores podem listar usuários.' })
     }
 
     const admin = createClient(
@@ -38,7 +38,7 @@ export default async function handler(req, res) {
     const { data: perfis } = await admin.from('profiles').select('id, role, created_at')
     const roleById = Object.fromEntries((perfis ?? []).map((p) => [p.id, p.role]))
 
-    const utilizadores = (authData?.users ?? []).map((u) => ({
+    const usuários = (authData?.users ?? []).map((u) => ({
       id:              u.id,
       email:           u.email,
       role:            roleById[u.id] ?? 'worker',
@@ -47,7 +47,7 @@ export default async function handler(req, res) {
       created_at:      u.created_at
     })).sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
 
-    return res.status(200).json({ utilizadores })
+    return res.status(200).json({ usuários })
 
   } catch (err) {
     if (err.status) return res.status(err.status).json({ error: err.message })

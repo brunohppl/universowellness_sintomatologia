@@ -58,8 +58,8 @@ export default function LandingPage() {
             </h1>
             <p className="text-muted mt-2">
               {!empresaSelecionada
-                ? 'Selecione a sua empresa para começar.'
-                : `Selecione a sua filial em ${empresaSelecionada.nome}.`}
+                ? 'Selecione sua empresa para começar.'
+                : `Selecione sua filial em ${empresaSelecionada.nome}.`}
             </p>
           </div>
 
