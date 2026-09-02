@@ -1,9 +1,8 @@
-import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import AppBar from '../components/AppBar'
 import { useAuth } from '../lib/useAuth'
 import { supabase } from '../lib/supabaseClient'
-import { ROLE_LABELS, ROLES } from '../lib/roles'
+import { ROLES } from '../lib/roles'
 
 const ROLE_OPTIONS = [
   { value: ROLES.WORKER,     label: 'Utilizador — formulários' },
@@ -13,120 +12,133 @@ const ROLE_OPTIONS = [
 ]
 
 const ROLE_BADGE = {
-  worker:     'bg-slate-100 text-slate-600',
-  analyst:    'bg-blue-50 text-blue-700',
-  manager:    'bg-teal-50 text-teal-700',
-  superadmin: 'bg-coral-50 text-coral-700'
+  worker:     'bg-slate-100 text-slate-600 border-slate-200',
+  analyst:    'bg-blue-50 text-blue-700 border-blue-200',
+  manager:    'bg-teal-50 text-teal-700 border-teal-200',
+  superadmin: 'bg-coral-50 text-coral-700 border-coral-200'
 }
 
-async function callApi(path, method, body, jwt) {
+async function callApi(path, body, jwt) {
   const res = await fetch(path, {
-    method,
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${jwt}`
-    },
-    body: body ? JSON.stringify(body) : undefined
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${jwt}` },
+    body: JSON.stringify(body ?? {})
   })
-  const json = await res.json()
+  // A função pode falhar antes de devolver JSON (ex: crash da serverless):
+  // ler como texto primeiro evita o erro "Unexpected token 'A'".
+  const texto = await res.text()
+  let json
+  try {
+    json = JSON.parse(texto)
+  } catch {
+    throw new Error(
+      res.status === 404
+        ? 'Endpoint não encontrado. A aplicação pode não estar totalmente publicada.'
+        : `Resposta inesperada do servidor (${res.status}).`
+    )
+  }
   if (!res.ok) throw new Error(json.error ?? 'Erro desconhecido')
   return json
 }
 
 export default function AdminUsers() {
-  const { session } = useAuth()
-  const navigate = useNavigate()
+  const { session, getAccessToken } = useAuth()
 
   const [utilizadores, setUtilizadores] = useState([])
-  const [carregando, setCarregando] = useState(true)
-  const [erro, setErro] = useState('')
-  const [sucesso, setSucesso] = useState('')
+  const [carregando, setCarregando]     = useState(true)
+  const [erroCarregar, setErroCarregar] = useState('')
 
-  // Invite form
-  const [inviteEmail, setInviteEmail] = useState('')
-  const [inviteRole, setInviteRole] = useState(ROLES.WORKER)
+  const [mensagem, setMensagem] = useState(null) // { texto, tipo: 'erro' | 'sucesso' }
+  const timerRef = useRef(null)
+
+  const [inviteEmail, setInviteEmail]         = useState('')
+  const [inviteRole, setInviteRole]           = useState(ROLES.WORKER)
   const [enviandoConvite, setEnviandoConvite] = useState(false)
+  const [ocupadoId, setOcupadoId]             = useState(null)
 
-  // Role change
-  const [atualizandoId, setAtualizandoId] = useState(null)
+  // Uma mensagem de cada vez — antes, timers sobrepostos apagavam
+  // mensagens novas antes de serem lidas.
+  const flash = useCallback((texto, tipo = 'sucesso') => {
+    if (timerRef.current) clearTimeout(timerRef.current)
+    setMensagem({ texto, tipo })
+    timerRef.current = setTimeout(() => setMensagem(null), 5000)
+  }, [])
 
-  useEffect(() => {
-    if (session === null) navigate('/login')
-  }, [session, navigate])
+  useEffect(() => () => { if (timerRef.current) clearTimeout(timerRef.current) }, [])
 
-  const carregarUtilizadores = async () => {
+  const carregarUtilizadores = useCallback(async () => {
     setCarregando(true)
-    setErro('')
-    // list_user_profiles() is a security definer function that joins
-    // profiles with auth.users to expose the email field
+    setErroCarregar('')
     const { data, error } = await supabase.rpc('list_user_profiles')
     if (error) {
-      console.error('list_user_profiles error:', error)
-      setErro('Não foi possível carregar os utilizadores. Verifique as permissões.')
+      console.error('list_user_profiles:', error)
+      setErroCarregar(
+        error.message?.includes('function')
+          ? 'A função list_user_profiles() ainda não existe na base de dados. Execute o schema.sql no Supabase.'
+          : `Não foi possível carregar os utilizadores: ${error.message}`
+      )
       setUtilizadores([])
     } else {
       setUtilizadores(data ?? [])
     }
     setCarregando(false)
-  }
+  }, [])
 
-  useEffect(() => {
-    if (session) carregarUtilizadores()
-  }, [session])
-
-  const flash = (msg, isErro = false) => {
-    if (isErro) setErro(msg)
-    else setSucesso(msg)
-    setTimeout(() => { setErro(''); setSucesso('') }, 4000)
-  }
+  useEffect(() => { if (session) carregarUtilizadores() }, [session, carregarUtilizadores])
 
   const handleConvidar = async (e) => {
     e.preventDefault()
     if (!inviteEmail.trim()) return
     setEnviandoConvite(true)
-    setErro('')
     try {
-      const jwt = session.access_token
-      await callApi('/api/invite-user', 'POST', { email: inviteEmail.trim(), role: inviteRole }, jwt)
+      const jwt = await getAccessToken()
+      await callApi('/api/invite-user', { email: inviteEmail.trim(), role: inviteRole }, jwt)
       flash(`Convite enviado para ${inviteEmail.trim()}.`)
       setInviteEmail('')
       setInviteRole(ROLES.WORKER)
       await carregarUtilizadores()
-    } catch (e) {
-      flash(e.message, true)
+    } catch (err) {
+      flash(err.message, 'erro')
     }
     setEnviandoConvite(false)
   }
 
+  const handleReenviar = async (email, role) => {
+    setOcupadoId(email)
+    try {
+      const jwt = await getAccessToken()
+      await callApi('/api/invite-user', { email, role }, jwt)
+      flash(`Convite reenviado para ${email}.`)
+    } catch (err) {
+      flash(err.message, 'erro')
+    }
+    setOcupadoId(null)
+  }
+
   const handleMudarRole = async (userId, novoRole) => {
-    setAtualizandoId(userId)
-    setErro('')
-    const { error } = await supabase
-      .from('profiles')
-      .update({ role: novoRole })
-      .eq('id', userId)
-    setAtualizandoId(null)
+    setOcupadoId(userId)
+    const { error } = await supabase.from('profiles').update({ role: novoRole }).eq('id', userId)
+    setOcupadoId(null)
     if (error) {
-      flash('Não foi possível actualizar o papel.', true)
+      flash(`Não foi possível alterar o papel: ${error.message}`, 'erro')
     } else {
-      setUtilizadores((prev) =>
-        prev.map((u) => u.id === userId ? { ...u, role: novoRole } : u)
-      )
-      flash('Papel actualizado.')
+      setUtilizadores((prev) => prev.map((u) => (u.id === userId ? { ...u, role: novoRole } : u)))
+      flash('Papel atualizado.')
     }
   }
 
   const handleRemover = async (userId, email) => {
-    if (!window.confirm(`Remover o utilizador "${email}"? Esta acção não pode ser desfeita.`)) return
-    setErro('')
+    if (!window.confirm(`Remover o utilizador "${email}"? Esta ação não pode ser desfeita.`)) return
+    setOcupadoId(userId)
     try {
-      const jwt = session.access_token
-      await callApi('/api/remove-user', 'DELETE', { userId }, jwt)
+      const jwt = await getAccessToken()
+      await callApi('/api/remove-user', { userId }, jwt)
       setUtilizadores((prev) => prev.filter((u) => u.id !== userId))
       flash('Utilizador removido.')
-    } catch (e) {
-      flash(e.message, true)
+    } catch (err) {
+      flash(err.message, 'erro')
     }
+    setOcupadoId(null)
   }
 
   if (!session) return null
@@ -140,23 +152,23 @@ export default function AdminUsers() {
 
       <main className="px-4 sm:px-8 py-6 max-w-4xl mx-auto space-y-6">
 
-        {/* Feedback */}
-        {erro && (
-          <div className="bg-coral-50 border border-coral-300 text-coral-700 rounded-2xl px-4 py-3 text-sm font-medium">
-            {erro}
-          </div>
-        )}
-        {sucesso && (
-          <div className="bg-green-50 border border-green-300 text-green-700 rounded-2xl px-4 py-3 text-sm font-medium">
-            {sucesso}
+        {mensagem && (
+          <div
+            className={`rounded-2xl px-4 py-3 text-sm font-medium border ${
+              mensagem.tipo === 'erro'
+                ? 'bg-coral-50 border-coral-300 text-coral-700'
+                : 'bg-green-50 border-green-300 text-green-700'
+            }`}
+          >
+            {mensagem.texto}
           </div>
         )}
 
-        {/* Invite form */}
+        {/* Convidar */}
         <div className="bg-white rounded-2xl shadow-card p-5 sm:p-6">
           <h2 className="font-display font-semibold text-ink mb-1">Convidar utilizador</h2>
           <p className="text-sm text-muted mb-4">
-            O utilizador receberá um e-mail com um link para definir a sua senha e aceder à plataforma.
+            O utilizador recebe um e-mail com um link para definir a sua senha e aceder à plataforma.
           </p>
           <form onSubmit={handleConvidar} className="grid sm:grid-cols-[1fr_auto_auto] gap-3">
             <input
@@ -186,69 +198,91 @@ export default function AdminUsers() {
           </form>
         </div>
 
-        {/* Users list */}
+        {/* Lista */}
         <div className="bg-white rounded-2xl shadow-card overflow-hidden">
-          <div className="p-4 sm:p-5 border-b border-teal-50">
+          <div className="p-4 sm:p-5 border-b border-teal-50 flex items-center justify-between">
             <h2 className="font-display font-semibold text-ink">
               Utilizadores ativos
-              {!carregando && <span className="text-muted font-normal text-sm ml-2">({utilizadores.length})</span>}
+              {!carregando && !erroCarregar && (
+                <span className="text-muted font-normal text-sm ml-2">({utilizadores.length})</span>
+              )}
             </h2>
+            <button
+              onClick={carregarUtilizadores}
+              className="text-xs font-semibold text-teal-700 hover:text-teal-600 px-2 py-1"
+            >
+              Atualizar
+            </button>
           </div>
 
           {carregando ? (
             <div className="p-8 text-center text-muted text-sm">A carregar...</div>
+          ) : erroCarregar ? (
+            <div className="p-6">
+              <div className="bg-coral-50 border border-coral-300 text-coral-700 rounded-xl px-4 py-3 text-sm">
+                {erroCarregar}
+              </div>
+            </div>
           ) : utilizadores.length === 0 ? (
             <div className="p-8 text-center text-muted text-sm italic">Nenhum utilizador encontrado.</div>
           ) : (
             <div className="divide-y divide-teal-50">
               {utilizadores.map((u) => {
-                const email = u.email ?? u.id
-                const lastLogin = u.last_sign_in_at
+                const email      = u.email ?? u.id
+                const pendente   = !u.last_sign_in_at
+                const ultimo     = u.last_sign_in_at
                   ? new Date(u.last_sign_in_at).toLocaleDateString('pt-BR')
-                  : u.invited_at ? 'Convite pendente' : '—'
-                const isSelf = u.id === session.user.id
+                  : null
+                const isSelf     = u.id === session.user.id
+                const ocupado    = ocupadoId === u.id || ocupadoId === email
 
                 return (
                   <div key={u.id} className="flex flex-wrap items-center gap-3 px-4 sm:px-5 py-4">
-                    {/* Avatar */}
                     <div className="w-9 h-9 rounded-full bg-teal-50 grid place-items-center text-teal-700 font-bold text-sm flex-shrink-0">
                       {(email[0] ?? '?').toUpperCase()}
                     </div>
 
-                    {/* Info */}
                     <div className="flex-1 min-w-0">
                       <p className="font-medium text-ink text-sm truncate">
                         {email}
                         {isSelf && <span className="text-muted font-normal ml-1">(você)</span>}
                       </p>
-                      <p className="text-xs text-muted">Último acesso: {lastLogin}</p>
+                      <p className="text-xs text-muted">
+                        {pendente ? (
+                          <span className="text-amber-600">Convite pendente — ainda não acedeu</span>
+                        ) : (
+                          <>Último acesso: {ultimo}</>
+                        )}
+                      </p>
                     </div>
 
-                    {/* Role badge + selector */}
-                    <div className="flex items-center gap-2">
-                      {isSelf ? (
-                        <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${ROLE_BADGE[u.role] ?? ''}`}>
-                          {ROLE_LABELS[u.role] ?? u.role}
-                        </span>
-                      ) : (
-                        <select
-                          value={u.role}
-                          disabled={atualizandoId === u.id}
-                          onChange={(e) => handleMudarRole(u.id, e.target.value)}
-                          className={`text-xs font-semibold rounded-full px-2.5 py-1 border outline-none cursor-pointer ${ROLE_BADGE[u.role] ?? 'bg-slate-100'} border-current/20`}
-                        >
-                          {ROLE_OPTIONS.map((o) => (
-                            <option key={o.value} value={o.value}>{o.label}</option>
-                          ))}
-                        </select>
-                      )}
-                    </div>
+                    <select
+                      value={u.role}
+                      disabled={isSelf || ocupado}
+                      onChange={(e) => handleMudarRole(u.id, e.target.value)}
+                      title={isSelf ? 'Não pode alterar o seu próprio papel' : 'Alterar papel'}
+                      className={`text-xs font-semibold rounded-full px-2.5 py-1.5 border outline-none disabled:opacity-60 disabled:cursor-not-allowed ${ROLE_BADGE[u.role] ?? 'bg-slate-100 border-slate-200'}`}
+                    >
+                      {ROLE_OPTIONS.map((o) => (
+                        <option key={o.value} value={o.value}>{o.label}</option>
+                      ))}
+                    </select>
 
-                    {/* Remove */}
+                    {pendente && !isSelf && (
+                      <button
+                        onClick={() => handleReenviar(email, u.role)}
+                        disabled={ocupado}
+                        className="text-xs font-semibold text-teal-700 hover:text-teal-600 disabled:opacity-50 px-2 py-1"
+                      >
+                        Reenviar
+                      </button>
+                    )}
+
                     {!isSelf && (
                       <button
                         onClick={() => handleRemover(u.id, email)}
-                        className="text-xs font-semibold text-coral-600 hover:text-coral-700 px-2 py-1"
+                        disabled={ocupado}
+                        className="text-xs font-semibold text-coral-600 hover:text-coral-700 disabled:opacity-50 px-2 py-1"
                       >
                         Remover
                       </button>
@@ -260,13 +294,13 @@ export default function AdminUsers() {
           )}
         </div>
 
-        {/* Role legend */}
+        {/* Legenda */}
         <div className="bg-white rounded-2xl shadow-card p-5">
           <h3 className="font-display font-semibold text-sm text-ink mb-3">Níveis de acesso</h3>
           <div className="space-y-2">
             {ROLE_OPTIONS.map((o, i) => (
               <div key={o.value} className="flex items-center gap-3 text-sm">
-                <span className={`font-semibold px-2 py-0.5 rounded-full text-xs ${ROLE_BADGE[o.value]}`}>
+                <span className={`font-semibold px-2 py-0.5 rounded-full text-xs border ${ROLE_BADGE[o.value]}`}>
                   Nível {i + 1}
                 </span>
                 <span className="text-muted">{o.label}</span>
@@ -274,8 +308,8 @@ export default function AdminUsers() {
             ))}
           </div>
           <p className="text-xs text-muted mt-3">
-            Cada nível inclui tudo do nível anterior. O papel pode ser alterado a qualquer momento — o utilizador
-            não precisa de iniciar sessão novamente para o efeito se reflectir.
+            Cada nível inclui tudo do nível anterior. Não pode alterar nem remover a sua própria conta —
+            peça a outro administrador.
           </p>
         </div>
       </main>

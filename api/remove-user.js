@@ -4,7 +4,9 @@ import { verifyCaller } from './_verify-caller.js'
 export default async function handler(req, res) {
   res.setHeader('Content-Type', 'application/json')
 
-  if (req.method !== 'DELETE') {
+  // Aceita POST (e DELETE por retrocompatibilidade). Alguns proxies removem
+  // o corpo de pedidos DELETE, por isso o cliente usa POST.
+  if (req.method !== 'POST' && req.method !== 'DELETE') {
     return res.status(405).json({ error: 'Method not allowed' })
   }
 
@@ -21,7 +23,8 @@ export default async function handler(req, res) {
       return res.status(403).json({ error: 'Apenas administradores podem remover utilizadores.' })
     }
 
-    const { userId } = req.body ?? {}
+    // Aceita o id no corpo ou na query string
+    const userId = req.body?.userId ?? req.query?.userId
     if (!userId) return res.status(400).json({ error: 'userId é obrigatório.' })
 
     if (userId === callerId) {
