@@ -7,18 +7,15 @@ export default function AppBar() {
   const { session, canViewResults, canManageData, canManageUsers, signOut } = useAuth()
   const navigate = useNavigate()
 
-  const [menuAberto, setMenuAberto]         = useState(false)
-  const [mostrarModal, setMostrarModal]     = useState(false)
-  const menuRef                             = useRef(null)
+  const [menuAberto, setMenuAberto]     = useState(false)
+  const [mostrarModal, setMostrarModal] = useState(false)
+  const menuRef                         = useRef(null)
 
   const email = session?.user?.email ?? ''
 
-  // Close dropdown when clicking outside
   useEffect(() => {
     const handler = (e) => {
-      if (menuRef.current && !menuRef.current.contains(e.target)) {
-        setMenuAberto(false)
-      }
+      if (menuRef.current && !menuRef.current.contains(e.target)) setMenuAberto(false)
     }
     document.addEventListener('mousedown', handler)
     return () => document.removeEventListener('mousedown', handler)
@@ -28,6 +25,21 @@ export default function AppBar() {
     setMenuAberto(false)
     await signOut()
     navigate('/login')
+  }
+
+  // Visitante anónimo (formulário público partilhado por link):
+  // mostra apenas o logo, sem navegação nem menu de conta.
+  if (!session) {
+    return (
+      <header className="bg-white border-b border-slate-100 px-4 sm:px-8 py-3 flex items-center justify-center">
+        <img
+          src="/logo-universo-wellness.png"
+          alt="Universo Wellness"
+          className="h-8 object-contain"
+          onError={(e) => { e.target.style.display = 'none' }}
+        />
+      </header>
+    )
   }
 
   return (
@@ -62,7 +74,6 @@ export default function AppBar() {
             </a>
           )}
 
-          {/* User menu */}
           <div className="relative ml-1" ref={menuRef}>
             <button
               onClick={() => setMenuAberto((v) => !v)}

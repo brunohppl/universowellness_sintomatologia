@@ -3,6 +3,7 @@ import { useParams } from 'react-router-dom'
 import AppBar from '../components/AppBar'
 import BodyMapSelector from '../components/BodyMapSelector'
 import { supabase } from '../lib/supabaseClient'
+import { useAuth } from '../lib/useAuth'
 import { buscarFilialPorSlug } from '../lib/empresas'
 
 const SETORES_SUGERIDOS_PADRAO = [
@@ -20,6 +21,7 @@ const todayISO = () => new Date().toISOString().slice(0, 10)
 
 export default function WorkerForm() {
   const { slug } = useParams()
+  const { session } = useAuth()
 
   // Contexto do cliente/filial (carregado a partir do link, se houver slug)
   const [carregandoContexto, setCarregandoContexto] = useState(Boolean(slug))
@@ -322,11 +324,13 @@ export default function WorkerForm() {
             {enviando ? 'Enviando...' : 'Enviar registro'}
           </button>
 
-          <p className="text-center text-xs text-muted pb-6">
-            <a href="/" className="underline hover:text-teal-700">
-              ← Trocar empresa / filial
-            </a>
-          </p>
+          {session && (
+            <p className="text-center text-xs text-muted pb-6">
+              <a href="/" className="underline hover:text-teal-700">
+                ← Trocar empresa / filial
+              </a>
+            </p>
+          )}
         </form>
       </div>
       </div>

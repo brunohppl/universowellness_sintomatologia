@@ -12,24 +12,28 @@ export default function App() {
   return (
     <BrowserRouter>
       <Routes>
-        {/* Public */}
+        {/* ---- Público — sem necessidade de login ---- */}
         <Route path="/login" element={<LoginPage />} />
         <Route path="/invite" element={<AcceptInvitePage />} />
 
-        {/* Level 1+ — all authenticated users */}
-        <Route path="/" element={<RequireAuth minLevel={1}><LandingPage /></RequireAuth>} />
-        <Route path="/f/:slug" element={<RequireAuth minLevel={1}><WorkerForm /></RequireAuth>} />
+        {/* Formulário partilhado por link — qualquer pessoa pode preencher */}
+        <Route path="/f/:slug" element={<WorkerForm />} />
 
-        {/* Level 2+ — analysts and above */}
+        {/* ---- Área da equipa — requer login ---- */}
+
+        {/* Nível 1+ — selector de empresa/filial (entrada da equipa) */}
+        <Route path="/" element={<RequireAuth minLevel={1}><LandingPage /></RequireAuth>} />
+
+        {/* Nível 2+ — painel de resultados */}
         <Route path="/admin" element={<RequireAuth minLevel={2}><AdminDashboard /></RequireAuth>} />
 
-        {/* Level 3+ — managers and above */}
+        {/* Nível 3+ — gestão de empresas/filiais */}
         <Route path="/admin/clientes" element={<RequireAuth minLevel={3}><AdminClientes /></RequireAuth>} />
 
-        {/* Level 4 — superadmin only */}
+        {/* Nível 4 — gestão de utilizadores */}
         <Route path="/admin/utilizadores" element={<RequireAuth minLevel={4}><AdminUsers /></RequireAuth>} />
 
-        {/* Legacy redirects */}
+        {/* Redirecionamentos antigos */}
         <Route path="/admin/login" element={<Navigate to="/login" replace />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

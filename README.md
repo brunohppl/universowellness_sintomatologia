@@ -159,4 +159,3 @@ too, in case anyone needs to cross-reference data, build a custom view, or run S
 - Scheduled email digest per client
 - Kiosk/tablet "lock" mode so workers can't navigate away from the form
 - Multi-language toggle, if a branch has non-Portuguese-speaking staff
-# Last synced by Claude

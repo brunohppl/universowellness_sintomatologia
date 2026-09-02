@@ -195,11 +195,12 @@ alter table public.empresas enable row level security;
 alter table public.filiais enable row level security;
 alter table public.setores enable row level security;
 
--- submissions: qualquer utilizador autenticado insere (workers incluídos);
--- apenas analyst e acima podem ler; manager e acima podem eliminar
+-- submissions: QUALQUER pessoa (mesmo sem login) pode enviar um registo —
+-- os formulários são públicos, partilhados por link.
+-- Apenas analyst (2) e acima podem LER; manager (3) e acima podem eliminar.
 drop policy if exists "Trabalhadores podem enviar registros" on public.submissions;
 create policy "Trabalhadores podem enviar registros"
-  on public.submissions for insert to authenticated
+  on public.submissions for insert to anon, authenticated
   with check (true);
 
 drop policy if exists "Equipe autenticada pode ler registros" on public.submissions;
@@ -212,12 +213,13 @@ create policy "Gestores podem eliminar registros"
   on public.submissions for delete to authenticated
   using (public.my_role_level() >= 3);
 
--- empresas/filiais/setores: todos os autenticados lêem (o formulário precisa
--- carregar a lista de setores); apenas manager e acima escrevem
+-- empresas/filiais/setores: leitura PÚBLICA (o formulário partilhado por link
+-- precisa carregar o logo da empresa e a lista de setores sem login);
+-- apenas manager (3) e acima podem criar/editar/remover.
 drop policy if exists "Leitura pública de empresas" on public.empresas;
 drop policy if exists "Leitura autenticada de empresas" on public.empresas;
-create policy "Leitura autenticada de empresas"
-  on public.empresas for select to authenticated using (true);
+create policy "Leitura pública de empresas"
+  on public.empresas for select to anon, authenticated using (true);
 
 drop policy if exists "Equipe gerencia empresas" on public.empresas;
 create policy "Equipe gerencia empresas"
@@ -227,8 +229,8 @@ create policy "Equipe gerencia empresas"
 
 drop policy if exists "Leitura pública de filiais" on public.filiais;
 drop policy if exists "Leitura autenticada de filiais" on public.filiais;
-create policy "Leitura autenticada de filiais"
-  on public.filiais for select to authenticated using (true);
+create policy "Leitura pública de filiais"
+  on public.filiais for select to anon, authenticated using (true);
 
 drop policy if exists "Equipe gerencia filiais" on public.filiais;
 create policy "Equipe gerencia filiais"
@@ -238,8 +240,8 @@ create policy "Equipe gerencia filiais"
 
 drop policy if exists "Leitura pública de setores" on public.setores;
 drop policy if exists "Leitura autenticada de setores" on public.setores;
-create policy "Leitura autenticada de setores"
-  on public.setores for select to authenticated using (true);
+create policy "Leitura pública de setores"
+  on public.setores for select to anon, authenticated using (true);
 
 drop policy if exists "Equipe gerencia setores" on public.setores;
 create policy "Equipe gerencia setores"
