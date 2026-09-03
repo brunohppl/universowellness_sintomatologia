@@ -5,6 +5,7 @@
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import { getAreaNome } from '../data/painAreas'
+import { getEstresseNome } from '../data/stressLevels'
 
 function formatarData(iso) {
   if (!iso) return '-'
@@ -30,7 +31,7 @@ function carregarLogoComoDataUrl() {
   })
 }
 
-function gerarResumoTexto({ total, semDor, areaTopNome, areaTopCount, setorTopNome, setorTopCount, dataInicio, dataFim }) {
+function gerarResumoTexto({ total, semDor, areaTopNome, areaTopCount, setorTopNome, setorTopCount, mediaEstresse, totalComEstresse, dataInicio, dataFim }) {
   if (total === 0) {
     return 'Nenhum registro foi encontrado para o período e os filtros selecionados.'
   }
@@ -44,6 +45,12 @@ function gerarResumoTexto({ total, semDor, areaTopNome, areaTopCount, setorTopNo
   }
   if (setorTopNome) {
     partes.push(`O setor com maior número de relatos foi "${setorTopNome}", com ${setorTopCount} registro(s).`)
+  }
+  if (mediaEstresse != null) {
+    partes.push(
+      `O nível médio de estresse relatado foi ${mediaEstresse.toFixed(1)} numa escala de 1 (muito baixo) a 5 (muito alto), ` +
+      `com base em ${totalComEstresse} registro(s) que responderam a essa pergunta.`
+    )
   }
   partes.push('Recomenda-se atenção especial às áreas e aos setores destacados na próxima avaliação ergonômica.')
   return partes.join(' ')
@@ -90,7 +97,7 @@ function desenharGraficoBarras(doc, dados, titulo, x, y, largura) {
   return y + 2
 }
 
-export async function gerarRelatorioPdf({ filtros, rows, dadosAreaChart, dadosSetorChart, stats }) {
+export async function gerarRelatorioPdf({ filtros, rows, dadosAreaChart, dadosSetorChart, dadosEstresseChart, stats }) {
   const doc = new jsPDF({ unit: 'mm', format: 'a4' })
   const pageWidth = doc.internal.pageSize.getWidth()
   let y = 16
@@ -128,7 +135,8 @@ export async function gerarRelatorioPdf({ filtros, rows, dadosAreaChart, dadosSe
     `Cliente: ${filtros.empresaNome || 'Todos'}`,
     `Filial: ${filtros.filialNome || 'Todas'}`,
     `Setor: ${filtros.setorNome || 'Todos'}`,
-    `Área: ${filtros.areaNome || 'Todas'}`
+    `Área: ${filtros.areaNome || 'Todas'}`,
+    `Estresse: ${filtros.estresseNome || 'Todos'}`
   ].forEach((linha) => {
     doc.text(linha, 14, y)
     y += 4.6
@@ -137,12 +145,13 @@ export async function gerarRelatorioPdf({ filtros, rows, dadosAreaChart, dadosSe
 
   y += 5
 
-  const cardW = (pageWidth - 28 - 12) / 4
+  const cardW = (pageWidth - 28 - 16) / 5
   const cards = [
     { label: 'REGISTROS', valor: String(stats.total) },
     { label: 'SEM DESCONFORTO', valor: String(stats.semDor) },
     { label: 'ÁREA MAIS REPORTADA', valor: stats.areaTopNome || '—' },
-    { label: 'SETOR MAIS AFETADO', valor: stats.setorTopNome || '—' }
+    { label: 'SETOR MAIS AFETADO', valor: stats.setorTopNome || '—' },
+    { label: 'ESTRESSE MÉDIO', valor: stats.mediaEstresse != null ? `${stats.mediaEstresse.toFixed(1)} / 5` : '—' }
   ]
   cards.forEach((card, i) => {
     const x = 14 + i * (cardW + 4)
@@ -168,6 +177,13 @@ export async function gerarRelatorioPdf({ filtros, rows, dadosAreaChart, dadosSe
     y = 18
   }
   y = desenharGraficoBarras(doc, dadosSetorChart.slice(0, 10), 'Registros por setor', 14, y, pageWidth - 28)
+  y += 6
+
+  if (y > 220) {
+    doc.addPage()
+    y = 18
+  }
+  y = desenharGraficoBarras(doc, dadosEstresseChart ?? [], 'Distribuição do nível de estresse', 14, y, pageWidth - 28)
 
   doc.addPage()
   y = 18
@@ -186,6 +202,8 @@ export async function gerarRelatorioPdf({ filtros, rows, dadosAreaChart, dadosSe
     areaTopCount: stats.areaTopCount,
     setorTopNome: stats.setorTopNome,
     setorTopCount: stats.setorTopCount,
+    mediaEstresse: stats.mediaEstresse,
+    totalComEstresse: stats.totalComEstresse,
     dataInicio: filtros.dataInicio,
     dataFim: filtros.dataFim
   })
@@ -196,11 +214,12 @@ export async function gerarRelatorioPdf({ filtros, rows, dadosAreaChart, dadosSe
   if (rows.length > 0) {
     autoTable(doc, {
       startY: y,
-      head: [['Nome', 'Setor', 'Data', 'Áreas']],
+      head: [['Nome', 'Setor', 'Data', 'Estresse', 'Áreas']],
       body: rows.slice(0, 200).map((r) => [
         r.nome,
         r.setor,
         formatarData(r.data_registro),
+        r.nivel_estresse != null ? `${r.nivel_estresse} - ${getEstresseNome(r.nivel_estresse)}` : '—',
         (r.areas_dor ?? []).length === 0 ? 'Sem dor' : r.areas_dor.map(getAreaNome).join(', ')
       ]),
       styles: { fontSize: 8, cellPadding: 2 },

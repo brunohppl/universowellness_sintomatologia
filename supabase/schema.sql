@@ -172,12 +172,22 @@ create table if not exists public.submissions (
 alter table public.submissions add column if not exists empresa_id uuid references public.empresas(id);
 alter table public.submissions add column if not exists filial_id uuid references public.filiais(id);
 
+-- Nível de estresse percebido (1 = muito baixo ... 5 = muito alto).
+-- Nullable para não invalidar registros criados antes deste campo existir.
+alter table public.submissions add column if not exists nivel_estresse smallint;
+alter table public.submissions drop constraint if exists submissions_estresse_check;
+alter table public.submissions
+  add constraint submissions_estresse_check
+  check (nivel_estresse is null or nivel_estresse between 1 and 5);
+
 comment on table public.submissions is
   'Registros de sintomatologia dolorosa (desconforto corporal) preenchidos pelos trabalhadores.';
 comment on column public.submissions.areas_dor is
   '1 Cabeça, 2 Pescoço, 3 Ombro, 4 Braço e antebraço, 5 Costas alta (dorsais), 6 Costas baixa (lombares), 7 Mão e punho, 8 Coxa e joelho, 9 Perna, 10 Pé e tornozelo';
 comment on column public.submissions.empresa_id is
   'Cliente (empresa) ao qual este registro pertence. Nulo = formulário genérico/teste em "/".';
+comment on column public.submissions.nivel_estresse is
+  'Estresse percebido: 1 Muito baixo, 2 Baixo, 3 Moderado, 4 Alto, 5 Muito alto. Nulo em registros anteriores ao campo.';
 comment on column public.submissions.filial_id is
   'Filial específica onde o registro foi feito. Nulo = formulário genérico/teste em "/".';
 
@@ -186,6 +196,7 @@ create index if not exists submissions_setor_idx on public.submissions (setor);
 create index if not exists submissions_areas_idx on public.submissions using gin (areas_dor);
 create index if not exists submissions_empresa_idx on public.submissions (empresa_id);
 create index if not exists submissions_filial_idx on public.submissions (filial_id);
+create index if not exists submissions_estresse_idx on public.submissions (nivel_estresse);
 
 -- ----------------------------------------------------------------------------
 -- Row Level Security

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabaseClient'
 import { useAuth } from '../lib/useAuth'
 import { AREAS_DOR, getAreaNome } from '../data/painAreas'
+import { NIVEIS_ESTRESSE, getEstresseCor, getEstresseNome } from '../data/stressLevels'
 import { exportSubmissionsToCsv } from '../lib/csv'
 import { gerarRelatorioPdf } from '../lib/pdfReport'
 import { listarEmpresas, listarFiliaisPorEmpresa } from '../lib/empresas'
@@ -10,6 +11,7 @@ import AppBar from '../components/AppBar'
 import StatCard from '../components/StatCard'
 import AreaFrequencyChart from '../components/AreaFrequencyChart'
 import SetorChart from '../components/SetorChart'
+import StressChart from '../components/StressChart'
 
 const isoDaysAgo = (n) => {
   const d = new Date()
@@ -47,6 +49,7 @@ export default function AdminDashboard() {
   const [dataFim, setDataFim] = useState(todayISO())
   const [setorFiltro, setSetorFiltro] = useState('todos')
   const [areaFiltro, setAreaFiltro] = useState('todas')
+  const [estresseFiltro, setEstresseFiltro] = useState('todos')
   const [busca, setBusca] = useState('')
   const [pagina, setPagina] = useState(1)
 
@@ -112,13 +115,14 @@ export default function AdminDashboard() {
         const cod = Number(areaFiltro)
         if (!(r.areas_dor ?? []).includes(cod)) return false
       }
+      if (estresseFiltro !== 'todos' && r.nivel_estresse !== Number(estresseFiltro)) return false
       if (busca.trim()) {
         const termo = busca.trim().toLowerCase()
         if (!r.nome?.toLowerCase().includes(termo) && !r.matricula?.toLowerCase().includes(termo)) return false
       }
       return true
     })
-  }, [rows, setorFiltro, areaFiltro, busca])
+  }, [rows, setorFiltro, areaFiltro, estresseFiltro, busca])
 
   const stats = useMemo(() => {
     const total = filtradas.length
@@ -129,6 +133,14 @@ export default function AdminDashboard() {
     const setorContagem = {}
     filtradas.forEach((r) => (setorContagem[r.setor] = (setorContagem[r.setor] ?? 0) + 1))
     const setorTopEntry = Object.entries(setorContagem).sort((a, b) => b[1] - a[1])[0]
+    const comEstresse = filtradas.filter((r) => r.nivel_estresse != null)
+    const mediaEstresse = comEstresse.length
+      ? (comEstresse.reduce((acc, r) => acc + r.nivel_estresse, 0) / comEstresse.length)
+      : null
+    const estresseContagem = {}
+    comEstresse.forEach((r) => {
+      estresseContagem[r.nivel_estresse] = (estresseContagem[r.nivel_estresse] ?? 0) + 1
+    })
     const areaTopNome = areaTopEntry ? getAreaNome(Number(areaTopEntry[0])) : null
     const setorTopNome = setorTopEntry ? setorTopEntry[0] : null
     return {
@@ -141,7 +153,10 @@ export default function AdminDashboard() {
       areaTop: areaTopNome ? `${areaTopNome} (${areaTopEntry[1]})` : '—',
       setorTop: setorTopNome ? `${setorTopNome} (${setorTopEntry[1]})` : '—',
       contagem,
-      setorContagem
+      setorContagem,
+      mediaEstresse,
+      estresseContagem,
+      totalComEstresse: comEstresse.length
     }
   }, [filtradas])
 
@@ -162,22 +177,29 @@ export default function AdminDashboard() {
     [stats]
   )
 
+  const dadosEstresseChart = useMemo(
+    () => NIVEIS_ESTRESSE.map((n) => ({ nome: n.nome, total: stats.estresseContagem[n.valor] ?? 0 })),
+    [stats]
+  )
+
   const totalPaginas = Math.max(1, Math.ceil(filtradas.length / PAGE_SIZE))
   const paginaAtual = filtradas.slice((pagina - 1) * PAGE_SIZE, pagina * PAGE_SIZE)
 
   const empresaNome = empresaFiltro === 'todos' ? null : empresas.find((e) => e.id === empresaFiltro)?.nome
   const filialNome = filialFiltro === 'todas' ? null : filiaisDisponiveis.find((f) => f.id === filialFiltro)?.nome
   const areaNome = areaFiltro === 'todas' ? null : getAreaNome(Number(areaFiltro))
+  const estresseNome = estresseFiltro === 'todos' ? null : `${estresseFiltro} — ${getEstresseNome(Number(estresseFiltro))}`
   const setorNome = setorFiltro === 'todos' ? null : setorFiltro
 
   const handleExportarPdf = async () => {
     setGerandoPdf(true)
     try {
       await gerarRelatorioPdf({
-        filtros: { dataInicio, dataFim, empresaNome, filialNome, setorNome, areaNome },
+        filtros: { dataInicio, dataFim, empresaNome, filialNome, setorNome, areaNome, estresseNome },
         rows: filtradas,
         dadosAreaChart,
         dadosSetorChart,
+        dadosEstresseChart,
         stats
       })
     } catch (e) {
@@ -197,7 +219,7 @@ export default function AdminDashboard() {
 
       <main className="px-4 sm:px-8 py-6 max-w-7xl mx-auto">
         {/* Filtros */}
-        <div className="bg-white rounded-2xl shadow-card p-4 sm:p-5 mb-6 grid sm:grid-cols-3 lg:grid-cols-7 gap-3">
+        <div className="bg-white rounded-2xl shadow-card p-4 sm:p-5 mb-6 grid sm:grid-cols-3 lg:grid-cols-8 gap-3">
           <div>
             <label className="block text-xs font-semibold text-muted mb-1">De</label>
             <input
@@ -278,6 +300,21 @@ export default function AdminDashboard() {
             </select>
           </div>
           <div>
+            <label className="block text-xs font-semibold text-muted mb-1">Estresse</label>
+            <select
+              value={estresseFiltro}
+              onChange={(e) => setEstresseFiltro(e.target.value)}
+              className="w-full rounded-xl border border-teal-100 px-3 py-2 text-sm outline-none focus:border-teal-500"
+            >
+              <option value="todos">Todos</option>
+              {NIVEIS_ESTRESSE.map((n) => (
+                <option key={n.valor} value={n.valor}>
+                  {n.valor} — {n.nome}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
             <label className="block text-xs font-semibold text-muted mb-1">Buscar nome/matrícula</label>
             <input
               value={busca}
@@ -295,17 +332,31 @@ export default function AdminDashboard() {
         )}
 
         {/* Stats */}
-        <div className="grid sm:grid-cols-4 gap-4 mb-6">
+        <div className="grid sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
           <StatCard label="Registros no período" value={loading ? '…' : stats.total} />
           <StatCard label="Sem desconforto" value={loading ? '…' : stats.semDor} accent="leaf" />
           <StatCard label="Área mais reportada" value={loading ? '…' : stats.areaTop} accent="coral" />
           <StatCard label="Setor mais afetado" value={loading ? '…' : stats.setorTop} accent="coral" />
+          <StatCard
+            label="Estresse médio"
+            value={
+              loading
+                ? '…'
+                : stats.mediaEstresse == null
+                ? '—'
+                : `${stats.mediaEstresse.toFixed(1)} / 5`
+            }
+            accent="coral"
+          />
         </div>
 
         {/* Charts */}
         <div className="grid lg:grid-cols-2 gap-4 mb-6">
           <AreaFrequencyChart data={dadosAreaChart.length ? dadosAreaChart : [{ nome: 'Sem dados', total: 0 }]} />
           <SetorChart data={dadosSetorChart.length ? dadosSetorChart : [{ setor: 'Sem dados', total: 0 }]} />
+          <div className="lg:col-span-2">
+            <StressChart data={dadosEstresseChart} />
+          </div>
         </div>
 
         {/* Tabela */}
@@ -339,6 +390,7 @@ export default function AdminDashboard() {
                   <th className="px-4 py-3 font-semibold">Setor</th>
                   <th className="px-4 py-3 font-semibold">Matrícula</th>
                   <th className="px-4 py-3 font-semibold">Data</th>
+                  <th className="px-4 py-3 font-semibold">Estresse</th>
                   <th className="px-4 py-3 font-semibold">Áreas</th>
                   <th className="px-4 py-3 font-semibold">Observações</th>
                   <th className="px-4 py-3 font-semibold w-10"></th>
@@ -347,13 +399,13 @@ export default function AdminDashboard() {
               <tbody>
                 {loading ? (
                   <tr>
-                    <td colSpan={8} className="px-4 py-8 text-center text-muted">
+                    <td colSpan={9} className="px-4 py-8 text-center text-muted">
                       Carregando...
                     </td>
                   </tr>
                 ) : paginaAtual.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="px-4 py-8 text-center text-muted">
+                    <td colSpan={9} className="px-4 py-8 text-center text-muted">
                       Nenhum registro encontrado para os filtros selecionados.
                     </td>
                   </tr>
@@ -366,6 +418,23 @@ export default function AdminDashboard() {
                       <td className="px-4 py-3 font-mono text-xs">{r.matricula || '—'}</td>
                       <td className="px-4 py-3 whitespace-nowrap">
                         {new Date(r.data_registro + 'T00:00:00').toLocaleDateString('pt-BR')}
+                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        {r.nivel_estresse == null ? (
+                          <span className="text-muted">—</span>
+                        ) : (
+                          <span
+                            className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold border"
+                            style={{
+                              color: getEstresseCor(r.nivel_estresse),
+                              borderColor: getEstresseCor(r.nivel_estresse) + '55',
+                              backgroundColor: getEstresseCor(r.nivel_estresse) + '15'
+                            }}
+                            title={getEstresseNome(r.nivel_estresse)}
+                          >
+                            {r.nivel_estresse} · {getEstresseNome(r.nivel_estresse)}
+                          </span>
+                        )}
                       </td>
                       <td className="px-4 py-3 min-w-[220px]">
                         {(r.areas_dor ?? []).length === 0 ? (

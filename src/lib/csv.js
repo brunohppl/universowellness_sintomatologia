@@ -1,4 +1,5 @@
 import { getAreaNome } from '../data/painAreas'
+import { getEstresseNome } from '../data/stressLevels'
 
 function escapeCsvField(value) {
   const str = String(value ?? '')
@@ -9,7 +10,7 @@ function escapeCsvField(value) {
 }
 
 export function exportSubmissionsToCsv(rows, filename = 'sintomatologia.csv') {
-  const headers = ['Nome', 'Cliente', 'Filial', 'Setor', 'Matricula', 'Data', 'Areas_de_dor', 'Observacoes', 'Registrado_em']
+  const headers = ['Nome', 'Cliente', 'Filial', 'Setor', 'Matricula', 'Data', 'Nivel_estresse', 'Estresse_descricao', 'Areas_de_dor', 'Observacoes', 'Registrado_em']
   const lines = [headers.join(';')]
 
   rows.forEach((r) => {
@@ -22,6 +23,8 @@ export function exportSubmissionsToCsv(rows, filename = 'sintomatologia.csv') {
         r.setor,
         r.matricula ?? '',
         r.data_registro,
+        r.nivel_estresse ?? '',
+        r.nivel_estresse != null ? getEstresseNome(r.nivel_estresse) : '',
         areas,
         r.observacoes ?? '',
         new Date(r.created_at).toLocaleString('pt-BR')

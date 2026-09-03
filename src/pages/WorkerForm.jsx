@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import AppBar from '../components/AppBar'
 import BodyMapSelector from '../components/BodyMapSelector'
+import StressSelector from '../components/StressSelector'
 import { supabase } from '../lib/supabaseClient'
 import { useAuth } from '../lib/useAuth'
 import { buscarFilialPorSlug } from '../lib/empresas'
@@ -62,6 +63,7 @@ export default function WorkerForm() {
   const [observacoes, setObservacoes] = useState('')
   const [selected, setSelected] = useState(new Set())
   const [semDor, setSemDor] = useState(false)
+  const [nivelEstresse, setNivelEstresse] = useState(null)
   const [erro, setErro] = useState('')
   const [enviando, setEnviando] = useState(false)
   const [enviado, setEnviado] = useState(false)
@@ -77,8 +79,12 @@ export default function WorkerForm() {
   }
 
   const podeEnviar = useMemo(
-    () => nome.trim().length > 1 && setor.trim().length > 0 && (semDor || selected.size > 0),
-    [nome, setor, semDor, selected]
+    () =>
+      nome.trim().length > 1 &&
+      setor.trim().length > 0 &&
+      nivelEstresse !== null &&
+      (semDor || selected.size > 0),
+    [nome, setor, semDor, selected, nivelEstresse]
   )
 
   const resetar = () => {
@@ -89,6 +95,7 @@ export default function WorkerForm() {
     setObservacoes('')
     setSelected(new Set())
     setSemDor(false)
+    setNivelEstresse(null)
     setErro('')
     setEnviado(false)
   }
@@ -96,7 +103,7 @@ export default function WorkerForm() {
   const handleSubmit = async (e) => {
     e.preventDefault()
     if (!podeEnviar) {
-      setErro('Preencha nome, setor e marque ao menos uma área (ou "não sinto dor").')
+      setErro('Preencha nome, setor, o nível de estresse e marque ao menos uma área (ou "não sinto dor").')
       return
     }
     setErro('')
@@ -108,6 +115,7 @@ export default function WorkerForm() {
       data_registro: data,
       areas_dor: semDor ? [] : Array.from(selected).sort((a, b) => a - b),
       observacoes: observacoes.trim() || null,
+      nivel_estresse: nivelEstresse,
       empresa_id: empresa?.id ?? null,
       filial_id: filial?.id ?? null
     })
@@ -294,6 +302,16 @@ export default function WorkerForm() {
             </label>
 
             {!semDor && <BodyMapSelector selected={selected} onToggle={toggleArea} />}
+          </div>
+
+          <div className="bg-white rounded-3xl shadow-card p-5 sm:p-6">
+            <label className="block text-sm font-semibold text-ink mb-1">
+              Nível de estresse hoje
+            </label>
+            <p className="text-sm text-muted mb-4">
+              Como você avalia seu nível de estresse no trabalho hoje?
+            </p>
+            <StressSelector valor={nivelEstresse} onChange={setNivelEstresse} />
           </div>
 
           <div className="bg-white rounded-3xl shadow-card p-5 sm:p-6">
