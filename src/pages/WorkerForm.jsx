@@ -19,7 +19,12 @@ const SETORES_SUGERIDOS_PADRAO = [
   'Administrativo'
 ]
 
-const todayISO = () => new Date().toISOString().slice(0, 10)
+// Data de hoje no fuso do Brasil (Uberlândia = America/Sao_Paulo, UTC-3).
+// Usar toISOString() aqui daria a data em UTC, o que fazia com que qualquer
+// envio após as 21:00 fosse gravado com a data do dia seguinte.
+// O locale 'en-CA' produz o formato AAAA-MM-DD, que é o esperado pelo banco.
+const todayISO = () =>
+  new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date())
 
 export default function WorkerForm() {
   const { slug } = useParams()
