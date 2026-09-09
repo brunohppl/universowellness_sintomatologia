@@ -175,6 +175,7 @@ alter table public.submissions add column if not exists filial_id uuid reference
 -- Nível de estresse percebido (1 = muito baixo ... 5 = muito alto).
 -- Nullable para não invalidar registros criados antes deste campo existir.
 alter table public.submissions add column if not exists nivel_estresse smallint;
+alter table public.submissions add column if not exists atualizado_em timestamptz;
 alter table public.submissions drop constraint if exists submissions_estresse_check;
 alter table public.submissions
   add constraint submissions_estresse_check
@@ -300,6 +301,99 @@ end;
 $$;
 
 grant execute on function public.list_user_profiles() to authenticated;
+
+
+-- ============================================================================
+-- Verificação de duplicados no formulário público
+--
+-- O formulário é anônimo e a política RLS impede que visitantes leiam a tabela
+-- submissions. Por isso a verificação é feita por uma função security definer
+-- que devolve APENAS a contagem e o horário do último envio — nunca os dados
+-- do registro (nome de terceiros, áreas de dor, observações, etc.).
+-- ============================================================================
+-- Normaliza um nome para comparação: minúsculas, sem espaços nas pontas e
+-- com espaços internos repetidos reduzidos a um só ("Maria  Silva " → "maria silva").
+-- IMMUTABLE para poder ser usada num índice.
+create or replace function public.normalizar_nome(p_nome text)
+returns text
+language sql immutable
+as $$
+  select lower(regexp_replace(btrim(coalesce(p_nome, '')), '\s+', ' ', 'g'));
+$$;
+
+create or replace function public.verificar_registro_duplicado(
+  p_filial_id uuid,
+  p_nome      text,
+  p_data      date
+)
+returns table(total int, ultimo_envio timestamptz)
+language sql security definer stable
+set search_path = public
+as $$
+  select count(*)::int, max(coalesce(atualizado_em, created_at))
+  from public.submissions
+  where public.normalizar_nome(nome) = public.normalizar_nome(p_nome)
+    and data_registro = p_data
+    and filial_id is not distinct from p_filial_id;
+$$;
+
+grant execute on function public.verificar_registro_duplicado(uuid, text, date) to anon, authenticated;
+
+create index if not exists submissions_duplicado_idx
+  on public.submissions (data_registro, filial_id, public.normalizar_nome(nome));
+
+-- ============================================================================
+-- Atualização do registro do próprio dia
+--
+-- Permite que a pessoa corrija o registro que acabou de enviar, sem criar uma
+-- duplicata. O alcance é deliberadamente estreito: só atualiza o registro mais
+-- recente com o MESMO nome, na MESMA filial e na MESMA data. Não é possível
+-- alterar registros de outros dias nem de outras filiais.
+-- O created_at original é preservado; a edição fica marcada em atualizado_em.
+-- ============================================================================
+create or replace function public.atualizar_registro_do_dia(
+  p_filial_id      uuid,
+  p_nome           text,
+  p_data           date,
+  p_matricula      text,
+  p_setor          text,
+  p_areas_dor      integer[],
+  p_observacoes    text,
+  p_nivel_estresse smallint
+)
+returns uuid
+language plpgsql security definer
+set search_path = public
+as $$
+declare
+  alvo uuid;
+begin
+  select id into alvo
+  from public.submissions
+  where public.normalizar_nome(nome) = public.normalizar_nome(p_nome)
+    and data_registro = p_data
+    and filial_id is not distinct from p_filial_id
+  order by created_at desc
+  limit 1;
+
+  if alvo is null then
+    raise exception 'Nenhum registro encontrado para atualizar.';
+  end if;
+
+  update public.submissions
+  set matricula      = p_matricula,
+      setor          = p_setor,
+      areas_dor      = p_areas_dor,
+      observacoes    = p_observacoes,
+      nivel_estresse = p_nivel_estresse,
+      atualizado_em  = now()
+  where id = alvo;
+
+  return alvo;
+end;
+$$;
+
+grant execute on function public.atualizar_registro_do_dia(uuid, text, date, text, text, integer[], text, smallint) to anon, authenticated;
 
 -- ============================================================================
 -- Próximos passos:

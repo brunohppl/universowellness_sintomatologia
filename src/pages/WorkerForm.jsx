@@ -3,6 +3,7 @@ import { useParams } from 'react-router-dom'
 import AppBar from '../components/AppBar'
 import BodyMapSelector from '../components/BodyMapSelector'
 import StressSelector from '../components/StressSelector'
+import DuplicateWarningModal from '../components/DuplicateWarningModal'
 import { supabase } from '../lib/supabaseClient'
 import { useAuth } from '../lib/useAuth'
 import { buscarFilialPorSlug } from '../lib/empresas'
@@ -64,6 +65,8 @@ export default function WorkerForm() {
   const [selected, setSelected] = useState(new Set())
   const [semDor, setSemDor] = useState(false)
   const [nivelEstresse, setNivelEstresse] = useState(null)
+  const [duplicado, setDuplicado] = useState(null) // { total, ultimo_envio }
+  const [atualizou, setAtualizou] = useState(false)
   const [erro, setErro] = useState('')
   const [enviando, setEnviando] = useState(false)
   const [enviado, setEnviado] = useState(false)
@@ -96,8 +99,35 @@ export default function WorkerForm() {
     setSelected(new Set())
     setSemDor(false)
     setNivelEstresse(null)
+    setDuplicado(null)
+    setAtualizou(false)
     setErro('')
     setEnviado(false)
+  }
+
+  // Monta o payload uma única vez — usado tanto no envio normal
+  // como após a confirmação do aviso de duplicado.
+  const montarPayload = () => ({
+    nome: nome.trim(),
+    matricula: matricula.trim() || null,
+    setor: setor.trim(),
+    data_registro: data,
+    areas_dor: semDor ? [] : Array.from(selected).sort((a, b) => a - b),
+    observacoes: observacoes.trim() || null,
+    nivel_estresse: nivelEstresse,
+    empresa_id: empresa?.id ?? null,
+    filial_id: filial?.id ?? null
+  })
+
+  const inserirRegistro = async () => {
+    const { error } = await supabase.from('submissions').insert(montarPayload())
+    if (error) {
+      // eslint-disable-next-line no-console
+      console.error(error)
+      setErro('Não foi possível enviar agora. Verifique a conexão e tente novamente.')
+      return false
+    }
+    return true
   }
 
   const handleSubmit = async (e) => {
@@ -108,24 +138,60 @@ export default function WorkerForm() {
     }
     setErro('')
     setEnviando(true)
-    const { error } = await supabase.from('submissions').insert({
-      nome: nome.trim(),
-      matricula: matricula.trim() || null,
-      setor: setor.trim(),
-      data_registro: data,
-      areas_dor: semDor ? [] : Array.from(selected).sort((a, b) => a - b),
-      observacoes: observacoes.trim() || null,
-      nivel_estresse: nivelEstresse,
-      empresa_id: empresa?.id ?? null,
-      filial_id: filial?.id ?? null
+
+    // Verifica se já existe um registro hoje com este nome nesta filial.
+    // Se a verificação falhar por qualquer motivo, seguimos com o envio —
+    // é preferível permitir um duplicado a bloquear alguém de registrar.
+    try {
+      const { data: dup, error: dupErro } = await supabase.rpc('verificar_registro_duplicado', {
+        p_filial_id: filial?.id ?? null,
+        p_nome: nome.trim(),
+        p_data: data
+      })
+      const info = Array.isArray(dup) ? dup[0] : dup
+      if (!dupErro && info && info.total > 0) {
+        setDuplicado(info)
+        setEnviando(false)
+        return
+      }
+    } catch {
+      // segue para o envio normal
+    }
+
+    const ok = await inserirRegistro()
+    setEnviando(false)
+    if (ok) setEnviado(true)
+  }
+
+  const handleEnviarMesmoAssim = async () => {
+    setEnviando(true)
+    const ok = await inserirRegistro()
+    setEnviando(false)
+    setDuplicado(null)
+    if (ok) setEnviado(true)
+  }
+
+  const handleAtualizarExistente = async () => {
+    setEnviando(true)
+    const { error } = await supabase.rpc('atualizar_registro_do_dia', {
+      p_filial_id: filial?.id ?? null,
+      p_nome: nome.trim(),
+      p_data: data,
+      p_matricula: matricula.trim() || null,
+      p_setor: setor.trim(),
+      p_areas_dor: semDor ? [] : Array.from(selected).sort((a, b) => a - b),
+      p_observacoes: observacoes.trim() || null,
+      p_nivel_estresse: nivelEstresse
     })
     setEnviando(false)
+    setDuplicado(null)
     if (error) {
-      setErro('Não foi possível enviar agora. Verifique a conexão e tente novamente.')
       // eslint-disable-next-line no-console
       console.error(error)
+      setErro('Não foi possível atualizar o registro. Tente novamente.')
       return
     }
+    setAtualizou(true)
     setEnviado(true)
   }
 
@@ -167,9 +233,13 @@ export default function WorkerForm() {
             <div className="w-16 h-16 mx-auto mb-5 rounded-full bg-leaf-500 grid place-items-center text-white text-3xl">
               ✓
             </div>
-            <h1 className="font-display font-extrabold text-2xl text-ink mb-2">Registro enviado</h1>
+            <h1 className="font-display font-extrabold text-2xl text-ink mb-2">
+              {atualizou ? 'Registro atualizado' : 'Registro enviado'}
+            </h1>
             <p className="text-muted mb-8">
-              Obrigado, {nome.split(' ')[0]}. Seu registro de hoje foi salvo com sucesso.
+              {atualizou
+                ? `Obrigado, ${nome.split(' ')[0]}. Seu registro de hoje foi atualizado com sucesso.`
+                : `Obrigado, ${nome.split(' ')[0]}. Seu registro de hoje foi salvo com sucesso.`}
             </p>
             <button
               onClick={resetar}
@@ -341,6 +411,18 @@ export default function WorkerForm() {
           >
             {enviando ? 'Enviando...' : 'Enviar registro'}
           </button>
+
+          {duplicado && (
+            <DuplicateWarningModal
+              nome={nome.trim()}
+              filialNome={filial?.nome}
+              ultimoEnvio={duplicado.ultimo_envio}
+              ocupado={enviando}
+              onCorrigir={() => setDuplicado(null)}
+              onAtualizar={handleAtualizarExistente}
+              onEnviarMesmoAssim={handleEnviarMesmoAssim}
+            />
+          )}
 
           {session && (
             <p className="text-center text-xs text-muted pb-6">
