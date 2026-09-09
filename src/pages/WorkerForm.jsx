@@ -416,7 +416,10 @@ export default function WorkerForm() {
             <DuplicateWarningModal
               nome={nome.trim()}
               filialNome={filial?.nome}
+              totalHoje={duplicado.total_hoje}
+              total={duplicado.total}
               ultimoEnvio={duplicado.ultimo_envio}
+              ultimaData={duplicado.ultima_data}
               ocupado={enviando}
               onCorrigir={() => setDuplicado(null)}
               onAtualizar={handleAtualizarExistente}

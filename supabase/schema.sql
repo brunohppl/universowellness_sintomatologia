@@ -330,23 +330,32 @@ create or replace function public.verificar_registro_duplicado(
   p_data      date
 )
 returns table(
-  total        int,          -- envios hoje com este nome NESTA filial
-  ultimo_envio timestamptz   -- horário do envio mais recente
+  total        int,          -- envios deste nome NESTA filial, em qualquer data
+  total_hoje   int,          -- destes, quantos na data informada
+  ultimo_envio timestamptz,  -- horário do envio mais recente
+  ultima_data  date          -- data do envio mais recente
 )
 language sql security definer stable
 set search_path = public
 as $$
-  select count(*)::int, max(coalesce(s.atualizado_em, s.created_at))
-  from public.submissions s
-  where public.normalizar_nome(s.nome) = public.normalizar_nome(p_nome)
-    and s.data_registro = p_data
-    and s.filial_id is not distinct from p_filial_id;
+  with correspondencias as (
+    select s.data_registro,
+           coalesce(s.atualizado_em, s.created_at) as quando
+    from public.submissions s
+    where public.normalizar_nome(s.nome) = public.normalizar_nome(p_nome)
+      and s.filial_id is not distinct from p_filial_id
+  )
+  select
+    (select count(*)::int from correspondencias),
+    (select count(*)::int from correspondencias where data_registro = p_data),
+    (select max(quando) from correspondencias),
+    (select max(data_registro) from correspondencias);
 $$;
 
 grant execute on function public.verificar_registro_duplicado(uuid, text, date) to anon, authenticated;
 
 create index if not exists submissions_duplicado_idx
-  on public.submissions (data_registro, filial_id, public.normalizar_nome(nome));
+  on public.submissions (filial_id, public.normalizar_nome(nome), data_registro);
 
 -- Índice de uma versão anterior que verificava duplicados em todas as filiais.
 -- A verificação passou a ser apenas por filial, por isso deixa de ser preciso.
