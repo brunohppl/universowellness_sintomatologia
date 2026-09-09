@@ -321,7 +321,7 @@ as $$
   select lower(regexp_replace(btrim(coalesce(p_nome, '')), '\s+', ' ', 'g'));
 $$;
 
--- O tipo de retorno mudou, por isso é preciso remover a versão anterior.
+-- O tipo de retorno já mudou entre versões, por isso removemos antes de criar.
 drop function if exists public.verificar_registro_duplicado(uuid, text, date);
 
 create or replace function public.verificar_registro_duplicado(
@@ -330,42 +330,17 @@ create or replace function public.verificar_registro_duplicado(
   p_data      date
 )
 returns table(
-  total         int,          -- envios hoje com este nome, em qualquer formulário
-  total_aqui    int,          -- destes, quantos nesta mesma filial
-  ultimo_envio  timestamptz,  -- horário do envio mais recente
-  outra_unidade text          -- nome da outra filial, APENAS se for da mesma empresa
+  total        int,          -- envios hoje com este nome NESTA filial
+  ultimo_envio timestamptz   -- horário do envio mais recente
 )
 language sql security definer stable
 set search_path = public
 as $$
-  with correspondencias as (
-    select s.filial_id,
-           coalesce(s.atualizado_em, s.created_at) as quando,
-           f.nome       as filial_nome,
-           f.empresa_id as filial_empresa
-    from public.submissions s
-    left join public.filiais f on f.id = s.filial_id
-    where public.normalizar_nome(s.nome) = public.normalizar_nome(p_nome)
-      and s.data_registro = p_data
-  ),
-  empresa_atual as (
-    select empresa_id from public.filiais where id = p_filial_id
-  )
-  select
-    (select count(*)::int from correspondencias),
-    (select count(*)::int from correspondencias
-      where filial_id is not distinct from p_filial_id),
-    (select max(quando) from correspondencias),
-    -- Só revelamos o nome da outra unidade quando pertence à MESMA empresa.
-    -- Caso contrário devolvemos null: o formulário é público e não deve expor
-    -- a que outros clientes a Universo Wellness presta serviço.
-    (select c.filial_nome
-       from correspondencias c
-      where c.filial_id is distinct from p_filial_id
-        and c.filial_empresa is not null
-        and c.filial_empresa = (select empresa_id from empresa_atual)
-      order by c.quando desc
-      limit 1);
+  select count(*)::int, max(coalesce(s.atualizado_em, s.created_at))
+  from public.submissions s
+  where public.normalizar_nome(s.nome) = public.normalizar_nome(p_nome)
+    and s.data_registro = p_data
+    and s.filial_id is not distinct from p_filial_id;
 $$;
 
 grant execute on function public.verificar_registro_duplicado(uuid, text, date) to anon, authenticated;
@@ -373,9 +348,9 @@ grant execute on function public.verificar_registro_duplicado(uuid, text, date) 
 create index if not exists submissions_duplicado_idx
   on public.submissions (data_registro, filial_id, public.normalizar_nome(nome));
 
--- A busca agora percorre todas as filiais, não apenas a atual.
-create index if not exists submissions_duplicado_global_idx
-  on public.submissions (data_registro, public.normalizar_nome(nome));
+-- Índice de uma versão anterior que verificava duplicados em todas as filiais.
+-- A verificação passou a ser apenas por filial, por isso deixa de ser preciso.
+drop index if exists public.submissions_duplicado_global_idx;
 
 -- ============================================================================
 -- Atualização do registro do próprio dia

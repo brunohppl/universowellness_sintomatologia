@@ -1,25 +1,17 @@
 /**
  * Aviso de registro duplicado.
- * A verificação abrange TODOS os formulários, não apenas o atual.
- *
- * Dois cenários:
- *  - mesmoLocal: já existe envio hoje nesta mesma filial → pode atualizar
- *  - outro local: o envio foi noutra unidade → só permite novo registro,
- *    porque atualizar um registro de outra filial seria confuso e arriscado
+ * A verificação é feita apenas dentro da MESMA filial: um mesmo nome noutra
+ * unidade ou noutro cliente é tratado como outra pessoa e não gera aviso.
  */
 export default function DuplicateWarningModal({
   nome,
   filialNome,
-  totalAqui,
-  outraUnidade,
   ultimoEnvio,
   ocupado,
   onCorrigir,
   onAtualizar,
   onEnviarMesmoAssim
 }) {
-  const mesmoLocal = (totalAqui ?? 0) > 0
-
   const hora = ultimoEnvio
     ? new Date(ultimoEnvio).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
     : null
@@ -40,56 +32,33 @@ export default function DuplicateWarningModal({
         </h2>
 
         <p className="text-sm text-muted text-center mb-6">
-          {mesmoLocal ? (
-            <>
-              O nome <span className="font-semibold text-ink">{nome}</span> já foi registrado hoje
-              {filialNome ? <> em <span className="font-semibold text-ink">{filialNome}</span></> : null}
-              {hora ? <> às <span className="font-semibold text-ink">{hora}</span></> : null}.
-            </>
-          ) : (
-            <>
-              O nome <span className="font-semibold text-ink">{nome}</span> já foi registrado hoje
-              {outraUnidade
-                ? <> em <span className="font-semibold text-ink">{outraUnidade}</span></>
-                : <> em outra unidade</>}
-              {hora ? <>, às <span className="font-semibold text-ink">{hora}</span></> : null}.
-              {' '}Confirme se está preenchendo o formulário correto.
-            </>
-          )}
+          O nome <span className="font-semibold text-ink">{nome}</span> já foi registrado hoje
+          {filialNome ? <> em <span className="font-semibold text-ink">{filialNome}</span></> : null}
+          {hora ? <> às <span className="font-semibold text-ink">{hora}</span></> : null}.
           <br />O que deseja fazer?
         </p>
 
         <div className="space-y-2">
-          {mesmoLocal && (
-            <>
-              <button
-                onClick={onAtualizar}
-                disabled={ocupado}
-                className="w-full bg-teal-700 hover:bg-teal-600 disabled:opacity-60 text-white font-display font-semibold py-3 rounded-2xl transition-colors"
-              >
-                Atualizar o registro de hoje
-              </button>
-              <p className="text-xs text-muted text-center pb-1">
-                Substitui as respostas do registro anterior pelas que você acabou de preencher.
-              </p>
-            </>
-          )}
+          <button
+            onClick={onAtualizar}
+            disabled={ocupado}
+            className="w-full bg-teal-700 hover:bg-teal-600 disabled:opacity-60 text-white font-display font-semibold py-3 rounded-2xl transition-colors"
+          >
+            Atualizar o registro de hoje
+          </button>
+          <p className="text-xs text-muted text-center pb-1">
+            Substitui as respostas do registro anterior pelas que você acabou de preencher.
+          </p>
 
           <button
             onClick={onEnviarMesmoAssim}
             disabled={ocupado}
-            className={`w-full font-display font-semibold py-3 rounded-2xl transition-colors disabled:opacity-60 ${
-              mesmoLocal
-                ? 'border-2 border-teal-100 hover:bg-teal-50 text-teal-700'
-                : 'bg-teal-700 hover:bg-teal-600 text-white'
-            }`}
+            className="w-full border-2 border-teal-100 hover:bg-teal-50 disabled:opacity-60 text-teal-700 font-display font-semibold py-3 rounded-2xl transition-colors"
           >
             Enviar como um novo registro
           </button>
           <p className="text-xs text-muted text-center pb-1">
-            {mesmoLocal
-              ? 'Use se for outra pessoa com o mesmo nome, ou um segundo registro no dia.'
-              : 'Use se você realmente trabalha nesta unidade, ou se for outra pessoa com o mesmo nome.'}
+            Use se for outra pessoa com o mesmo nome, ou um segundo registro no dia.
           </p>
 
           <button
