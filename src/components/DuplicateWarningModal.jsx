@@ -17,6 +17,7 @@ export default function DuplicateWarningModal({
   ultimaData,
   ocupado,
   onCorrigir,
+  onCancelar,
   onAtualizar,
   onEnviarMesmoAssim
 }) {
@@ -35,25 +36,15 @@ export default function DuplicateWarningModal({
   return (
     <div className="fixed inset-0 bg-black/40 z-50 grid place-items-center px-4">
       <div className="bg-white rounded-3xl shadow-card w-full max-w-md p-6 animate-popIn">
-        <div
-          className={`w-12 h-12 rounded-full grid place-items-center mx-auto mb-4 ${
-            temHoje ? 'bg-amber-100 text-amber-600' : 'bg-teal-50 text-teal-700'
-          }`}
-        >
-          {temHoje ? (
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
-              <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
-            </svg>
-          ) : (
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>
-            </svg>
-          )}
+        <div className="w-12 h-12 rounded-full grid place-items-center mx-auto mb-4 bg-amber-100 text-amber-600">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+            <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+          </svg>
         </div>
 
         <h2 className="font-display font-extrabold text-xl text-ink text-center mb-2">
-          {temHoje ? 'Já existe um registro hoje' : 'Este nome já tem registros'}
+          {temHoje ? 'Já existe um registro hoje' : 'Este nome já foi registrado antes'}
         </h2>
 
         <p className="text-sm text-muted text-center mb-6">
@@ -68,14 +59,13 @@ export default function DuplicateWarningModal({
             <>
               O nome <span className="font-semibold text-ink">{nome}</span> já tem{' '}
               <span className="font-semibold text-ink">
-                {anteriores} {anteriores === 1 ? 'registro anterior' : 'registros anteriores'}
+                {anteriores} {anteriores === 1 ? 'registro' : 'registros'}
               </span>
               {filialNome ? <> em <span className="font-semibold text-ink">{filialNome}</span></> : null}
               {dataFmt ? <>, o último em <span className="font-semibold text-ink">{dataFmt}</span></> : null}.
               <br />
-              <span className="text-xs">
-                Se for a mesma pessoa, isto é normal — cada dia gera um registro novo,
-                e é assim que se acompanha a evolução.
+              <span className="font-medium text-ink">
+                Confirme que esta pessoa ainda não preencheu o formulário desta vez.
               </span>
             </>
           )}
@@ -106,7 +96,7 @@ export default function DuplicateWarningModal({
                 : 'bg-teal-700 hover:bg-teal-600 text-white'
             }`}
           >
-            {temHoje ? 'Enviar como um novo registro' : 'Continuar e enviar'}
+            {temHoje ? 'Enviar como um novo registro' : 'Já verifiquei — enviar'}
           </button>
           <p className="text-xs text-muted text-center pb-1">
             {temHoje
@@ -117,9 +107,20 @@ export default function DuplicateWarningModal({
           <button
             onClick={onCorrigir}
             disabled={ocupado}
-            className="w-full text-muted hover:text-ink disabled:opacity-60 font-medium py-2.5 text-sm transition-colors"
+            className="w-full border-2 border-teal-100 hover:bg-teal-50 disabled:opacity-60 text-teal-700 font-display font-semibold py-3 rounded-2xl transition-colors"
           >
-            Voltar e corrigir os dados
+            {temHoje ? 'Voltar e corrigir os dados' : 'Voltar e editar'}
+          </button>
+          <p className="text-xs text-muted text-center pb-1">
+            Mantém o que você já preencheu, para ajustar o nome ou outros campos.
+          </p>
+
+          <button
+            onClick={onCancelar}
+            disabled={ocupado}
+            className="w-full text-muted hover:text-coral-600 disabled:opacity-60 font-medium py-2.5 text-sm transition-colors"
+          >
+            Cancelar e limpar o formulário
           </button>
         </div>
       </div>

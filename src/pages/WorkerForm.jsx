@@ -163,6 +163,13 @@ export default function WorkerForm() {
     if (ok) setEnviado(true)
   }
 
+  // Descarta o preenchimento atual e volta ao formulário em branco.
+  // Útil num tablet partilhado quando se percebe que é a pessoa errada.
+  const handleCancelar = () => {
+    setDuplicado(null)
+    resetar()
+  }
+
   const handleEnviarMesmoAssim = async () => {
     setEnviando(true)
     const ok = await inserirRegistro()
@@ -422,6 +429,7 @@ export default function WorkerForm() {
               ultimaData={duplicado.ultima_data}
               ocupado={enviando}
               onCorrigir={() => setDuplicado(null)}
+              onCancelar={handleCancelar}
               onAtualizar={handleAtualizarExistente}
               onEnviarMesmoAssim={handleEnviarMesmoAssim}
             />
