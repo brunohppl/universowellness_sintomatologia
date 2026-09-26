@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import AppBar from '../components/AppBar'
 import { useAuth } from '../lib/useAuth'
 import { ROLES } from '../lib/roles'
+import { listarEmpresas } from '../lib/empresas'
 
 const ROLE_OPTIONS = [
   { value: ROLES.WORKER,     label: 'Usuário — formulários' },
@@ -43,7 +44,7 @@ async function callApi(path, body, jwt, method = 'POST') {
 export default function AdminUsers() {
   const { session, getAccessToken, refreshRole } = useAuth()
 
-  const [usuários, setUsuários] = useState([])
+  const [usuarios, setUsuarios] = useState([])
   const [carregando, setCarregando]     = useState(true)
   const [erroCarregar, setErroCarregar] = useState('')
   const [podeArrancar, setPodeArrancar] = useState(false)
@@ -53,6 +54,8 @@ export default function AdminUsers() {
 
   const [inviteEmail, setInviteEmail]         = useState('')
   const [inviteRole, setInviteRole]           = useState(ROLES.WORKER)
+  const [inviteEmpresa, setInviteEmpresa]     = useState('')   // '' = acesso global
+  const [empresas, setEmpresas]               = useState([])
   const [enviandoConvite, setEnviandoConvite] = useState(false)
   const [ocupadoId, setOcupadoId]             = useState(null)
 
@@ -66,16 +69,16 @@ export default function AdminUsers() {
 
   useEffect(() => () => { if (timerRef.current) clearTimeout(timerRef.current) }, [])
 
-  const carregarUsuários = useCallback(async () => {
+  const carregarUsuarios = useCallback(async () => {
     setCarregando(true)
     setErroCarregar('')
     setPodeArrancar(false)
     try {
       const jwt = await getAccessToken()
-      const { usuários: lista } = await callApi('/api/list-users', null, jwt)
-      setUsuários(lista ?? [])
+      const { usuarios: lista } = await callApi('/api/list-users', null, jwt)
+      setUsuarios(lista ?? [])
     } catch (err) {
-      setUsuários([])
+      setUsuarios([])
       // Sem permissão: verificar se ainda ninguém é administrador,
       // caso em que oferecemos o arranque inicial.
       try {
@@ -94,7 +97,23 @@ export default function AdminUsers() {
     setCarregando(false)
   }, [getAccessToken])
 
-  useEffect(() => { if (session) carregarUsuários() }, [session, carregarUsuários])
+  useEffect(() => { if (session) carregarUsuarios() }, [session, carregarUsuarios])
+
+  useEffect(() => {
+    if (session) listarEmpresas().then(setEmpresas).catch(() => setEmpresas([]))
+  }, [session])
+
+  // Restringir a uma empresa implica acesso somente de leitura: gestores e
+  // administradores atuam sobre os dados de todos os clientes.
+  const papeisPermitidos = inviteEmpresa
+    ? ROLE_OPTIONS.filter((o) => o.value === ROLES.WORKER || o.value === ROLES.ANALYST)
+    : ROLE_OPTIONS
+
+  useEffect(() => {
+    if (inviteEmpresa && !['worker', 'analyst'].includes(inviteRole)) {
+      setInviteRole(ROLES.ANALYST)
+    }
+  }, [inviteEmpresa, inviteRole])
 
   const handleConvidar = async (e) => {
     e.preventDefault()
@@ -102,22 +121,23 @@ export default function AdminUsers() {
     setEnviandoConvite(true)
     try {
       const jwt = await getAccessToken()
-      await callApi('/api/invite-user', { email: inviteEmail.trim(), role: inviteRole }, jwt)
+      await callApi('/api/invite-user', { email: inviteEmail.trim(), role: inviteRole, empresaId: inviteEmpresa || null }, jwt)
       flash(`Convite enviado para ${inviteEmail.trim()}.`)
       setInviteEmail('')
       setInviteRole(ROLES.WORKER)
-      await carregarUsuários()
+      setInviteEmpresa('')
+      await carregarUsuarios()
     } catch (err) {
       flash(err.message, 'erro')
     }
     setEnviandoConvite(false)
   }
 
-  const handleReenviar = async (email, role) => {
+  const handleReenviar = async (email, role, empresaId) => {
     setOcupadoId(email)
     try {
       const jwt = await getAccessToken()
-      await callApi('/api/invite-user', { email, role }, jwt)
+      await callApi('/api/invite-user', { email, role, empresaId: empresaId || null }, jwt)
       flash(`Convite reenviado para ${email}.`)
     } catch (err) {
       flash(err.message, 'erro')
@@ -126,12 +146,38 @@ export default function AdminUsers() {
   }
 
   const handleMudarRole = async (userId, novoRole) => {
+    const atual = usuarios.find((u) => u.id === userId)
     setOcupadoId(userId)
     try {
       const jwt = await getAccessToken()
-      await callApi('/api/set-user-role', { userId, role: novoRole }, jwt)
-      setUsuários((prev) => prev.map((u) => (u.id === userId ? { ...u, role: novoRole } : u)))
+      await callApi('/api/set-user-role',
+        { userId, role: novoRole, empresaId: atual?.empresa_id ?? null }, jwt)
+      setUsuarios((prev) => prev.map((u) => (u.id === userId ? { ...u, role: novoRole } : u)))
       flash('Permissão atualizada.')
+    } catch (err) {
+      flash(err.message, 'erro')
+    }
+    setOcupadoId(null)
+  }
+
+  const handleMudarEmpresa = async (userId, novaEmpresa) => {
+    const atual = usuarios.find((u) => u.id === userId)
+    // Ao restringir a uma empresa, rebaixa gestor/administrador para analista.
+    const papel = novaEmpresa && !['worker', 'analyst'].includes(atual?.role)
+      ? ROLES.ANALYST
+      : (atual?.role ?? ROLES.WORKER)
+    setOcupadoId(userId)
+    try {
+      const jwt = await getAccessToken()
+      await callApi('/api/set-user-role',
+        { userId, role: papel, empresaId: novaEmpresa || null }, jwt)
+      setUsuarios((prev) => prev.map((u) => (u.id === userId
+        ? { ...u,
+            empresa_id: novaEmpresa || null,
+            empresa_nome: empresas.find((e) => e.id === novaEmpresa)?.nome ?? null,
+            role: papel }
+        : u)))
+      flash(novaEmpresa ? 'Acesso restrito à empresa selecionada.' : 'Acesso global restaurado.')
     } catch (err) {
       flash(err.message, 'erro')
     }
@@ -145,7 +191,7 @@ export default function AdminUsers() {
       await callApi('/api/bootstrap-admin', null, jwt)
       await refreshRole()
       flash('Você agora é administrador. Carregando usuários...')
-      await carregarUsuários()
+      await carregarUsuarios()
     } catch (err) {
       flash(err.message, 'erro')
     }
@@ -158,7 +204,7 @@ export default function AdminUsers() {
     try {
       const jwt = await getAccessToken()
       await callApi('/api/remove-user', { userId }, jwt)
-      setUsuários((prev) => prev.filter((u) => u.id !== userId))
+      setUsuarios((prev) => prev.filter((u) => u.id !== userId))
       flash('Usuário removido.')
     } catch (err) {
       flash(err.message, 'erro')
@@ -211,8 +257,12 @@ export default function AdminUsers() {
           <h2 className="font-display font-semibold text-ink mb-1">Convidar usuário</h2>
           <p className="text-sm text-muted mb-4">
             O usuário recebe um e-mail com um link para definir sua senha e acessar a plataforma.
+            {inviteEmpresa && (
+              <> Restrito a uma empresa, ele verá apenas os dados dela — sem poder cadastrar
+              ou alterar nada.</>
+            )}
           </p>
-          <form onSubmit={handleConvidar} className="grid sm:grid-cols-[1fr_auto_auto] gap-3">
+          <form onSubmit={handleConvidar} className="grid sm:grid-cols-[1fr_auto_auto_auto] gap-3">
             <input
               type="email"
               required
@@ -222,11 +272,22 @@ export default function AdminUsers() {
               className="rounded-xl border border-teal-100 px-4 py-2.5 text-sm outline-none focus:border-teal-500"
             />
             <select
+              value={inviteEmpresa}
+              onChange={(e) => setInviteEmpresa(e.target.value)}
+              title="Limitar o acesso aos dados de uma empresa"
+              className="rounded-xl border border-teal-100 px-3 py-2.5 text-sm outline-none focus:border-teal-500 bg-white"
+            >
+              <option value="">Todas as empresas</option>
+              {empresas.map((e) => (
+                <option key={e.id} value={e.id}>Apenas {e.nome}</option>
+              ))}
+            </select>
+            <select
               value={inviteRole}
               onChange={(e) => setInviteRole(e.target.value)}
               className="rounded-xl border border-teal-100 px-3 py-2.5 text-sm outline-none focus:border-teal-500 bg-white"
             >
-              {ROLE_OPTIONS.map((o) => (
+              {papeisPermitidos.map((o) => (
                 <option key={o.value} value={o.value}>{o.label}</option>
               ))}
             </select>
@@ -246,11 +307,11 @@ export default function AdminUsers() {
             <h2 className="font-display font-semibold text-ink">
               Usuários ativos
               {!carregando && !erroCarregar && (
-                <span className="text-muted font-normal text-sm ml-2">({usuários.length})</span>
+                <span className="text-muted font-normal text-sm ml-2">({usuarios.length})</span>
               )}
             </h2>
             <button
-              onClick={carregarUsuários}
+              onClick={carregarUsuarios}
               className="text-xs font-semibold text-teal-700 hover:text-teal-600 px-2 py-1"
             >
               Atualizar
@@ -265,11 +326,11 @@ export default function AdminUsers() {
                 {erroCarregar}
               </div>
             </div>
-          ) : usuários.length === 0 ? (
+          ) : usuarios.length === 0 ? (
             <div className="p-8 text-center text-muted text-sm italic">Nenhum usuário encontrado.</div>
           ) : (
             <div className="divide-y divide-teal-50">
-              {usuários.map((u) => {
+              {usuarios.map((u) => {
                 const email      = u.email ?? u.id
                 const pendente   = !u.last_sign_in_at
                 const ultimo     = u.last_sign_in_at
@@ -295,8 +356,26 @@ export default function AdminUsers() {
                         ) : (
                           <>Último acesso: {ultimo}</>
                         )}
+                        {u.empresa_nome && (
+                          <> · <span className="text-teal-700 font-medium">
+                            Apenas {u.empresa_nome}
+                          </span></>
+                        )}
                       </p>
                     </div>
+
+                    <select
+                      value={u.empresa_id ?? ''}
+                      disabled={isSelf || ocupado}
+                      onChange={(e) => handleMudarEmpresa(u.id, e.target.value)}
+                      title={isSelf ? 'Não pode alterar o seu próprio acesso' : 'Limitar acesso a uma empresa'}
+                      className="text-xs font-semibold rounded-full px-2.5 py-1.5 border outline-none disabled:opacity-60 disabled:cursor-not-allowed bg-white border-slate-200 text-slate-600 max-w-[150px]"
+                    >
+                      <option value="">Todas as empresas</option>
+                      {empresas.map((e) => (
+                        <option key={e.id} value={e.id}>Apenas {e.nome}</option>
+                      ))}
+                    </select>
 
                     <select
                       value={u.role}
@@ -305,14 +384,17 @@ export default function AdminUsers() {
                       title={isSelf ? 'Você não pode alterar sua própria permissão' : 'Alterar permissão'}
                       className={`text-xs font-semibold rounded-full px-2.5 py-1.5 border outline-none disabled:opacity-60 disabled:cursor-not-allowed ${ROLE_BADGE[u.role] ?? 'bg-slate-100 border-slate-200'}`}
                     >
-                      {ROLE_OPTIONS.map((o) => (
+                      {(u.empresa_id
+                        ? ROLE_OPTIONS.filter((o) => o.value === ROLES.WORKER || o.value === ROLES.ANALYST)
+                        : ROLE_OPTIONS
+                      ).map((o) => (
                         <option key={o.value} value={o.value}>{o.label}</option>
                       ))}
                     </select>
 
                     {pendente && !isSelf && (
                       <button
-                        onClick={() => handleReenviar(email, u.role)}
+                        onClick={() => handleReenviar(email, u.role, u.empresa_id)}
                         disabled={ocupado}
                         className="text-xs font-semibold text-teal-700 hover:text-teal-600 disabled:opacity-50 px-2 py-1"
                       >
@@ -352,6 +434,9 @@ export default function AdminUsers() {
           <p className="text-xs text-muted mt-3">
             Cada nível inclui tudo do nível anterior. Você não pode alterar nem remover sua própria conta —
             peça a outro administrador.
+            <br />
+            Um usuário restrito a uma empresa vê apenas os dados dela e não pode cadastrar nem
+            alterar empresas, filiais ou outros usuários — por isso só aceita os níveis 1 e 2.
           </p>
         </div>
       </main>

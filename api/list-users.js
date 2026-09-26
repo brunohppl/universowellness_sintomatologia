@@ -35,19 +35,24 @@ export default async function handler(req, res) {
     const { data: authData, error: authErr } = await admin.auth.admin.listUsers({ perPage: 1000 })
     if (authErr) return res.status(400).json({ error: authErr.message })
 
-    const { data: perfis } = await admin.from('profiles').select('id, role, created_at')
-    const roleById = Object.fromEntries((perfis ?? []).map((p) => [p.id, p.role]))
+    const { data: perfis } = await admin.from('profiles').select('id, role, created_at, empresa_id')
+    const perfilPorId = Object.fromEntries((perfis ?? []).map((p) => [p.id, p]))
 
-    const usuários = (authData?.users ?? []).map((u) => ({
+    const { data: empresas } = await admin.from('empresas').select('id, nome')
+    const nomeEmpresa = Object.fromEntries((empresas ?? []).map((e) => [e.id, e.nome]))
+
+    const usuarios = (authData?.users ?? []).map((u) => ({
       id:              u.id,
       email:           u.email,
-      role:            roleById[u.id] ?? 'worker',
+      role:            perfilPorId[u.id]?.role ?? 'worker',
+      empresa_id:      perfilPorId[u.id]?.empresa_id ?? null,
+      empresa_nome:    nomeEmpresa[perfilPorId[u.id]?.empresa_id] ?? null,
       last_sign_in_at: u.last_sign_in_at,
       invited_at:      u.invited_at,
       created_at:      u.created_at
     })).sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
 
-    return res.status(200).json({ usuários })
+    return res.status(200).json({ usuarios })
 
   } catch (err) {
     if (err.status) return res.status(err.status).json({ error: err.message })

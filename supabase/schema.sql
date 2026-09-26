@@ -42,6 +42,21 @@ alter table public.profiles
   add constraint profiles_role_check
   check (role in ('worker', 'analyst', 'manager', 'superadmin'));
 
+-- Escopo por empresa.
+--   NULL  = acesso global (equipe Universo Wellness)
+--   valor = o usuário só enxerga os dados dessa empresa
+alter table public.profiles
+  add column if not exists empresa_id uuid references public.empresas(id) on delete set null;
+
+-- Um usuário restrito a uma empresa nunca pode ser gestor nem administrador:
+-- esses papéis administram dados de todos os clientes.
+alter table public.profiles drop constraint if exists profiles_escopo_check;
+alter table public.profiles
+  add constraint profiles_escopo_check
+  check (empresa_id is null or role in ('worker', 'analyst'));
+
+create index if not exists profiles_empresa_idx on public.profiles (empresa_id);
+
 comment on table public.profiles is
   'Permissões dos usuários. worker(1) analyst(2) manager(3) superadmin(4).';
 
@@ -56,6 +71,13 @@ returns int language sql security definer stable as $$
     when 'superadmin' then 4
     else 0
   end
+$$;
+
+-- Devolve a empresa à qual o usuário atual está restrito (NULL = acesso global).
+create or replace function public.meu_empresa_id()
+returns uuid language sql security definer stable
+set search_path = public as $$
+  select empresa_id from public.profiles where id = auth.uid()
 $$;
 
 -- Trigger: cria automaticamente um perfil quando um novo usuário
@@ -215,10 +237,19 @@ create policy "Trabalhadores podem enviar registros"
   on public.submissions for insert to anon, authenticated
   with check (true);
 
+-- Leitura de registros: nível 2+ E, se o usuário estiver restrito a uma
+-- empresa, apenas os registros dessa empresa. A restrição é aplicada aqui,
+-- no banco, e não apenas na interface — um pedido direto à API também respeita.
 drop policy if exists "Equipe autenticada pode ler registros" on public.submissions;
 create policy "Equipe autenticada pode ler registros"
   on public.submissions for select to authenticated
-  using (public.my_role_level() >= 2);
+  using (
+    public.my_role_level() >= 2
+    and (
+      public.meu_empresa_id() is null
+      or empresa_id = public.meu_empresa_id()
+    )
+  );
 
 drop policy if exists "Gestores podem excluir registros" on public.submissions;
 create policy "Gestores podem excluir registros"

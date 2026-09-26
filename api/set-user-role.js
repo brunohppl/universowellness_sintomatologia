@@ -23,11 +23,18 @@ export default async function handler(req, res) {
       return res.status(403).json({ error: 'Apenas administradores podem alterar permissões.' })
     }
 
-    const { userId, role } = req.body ?? {}
+    const { userId, role, empresaId } = req.body ?? {}
     const validRoles = ['worker', 'analyst', 'manager', 'superadmin']
 
     if (!userId || !validRoles.includes(role)) {
       return res.status(400).json({ error: 'userId e permissão válida são obrigatórios.' })
+    }
+
+    // Restrição a uma empresa implica acesso somente de leitura.
+    if (empresaId && !['worker', 'analyst'].includes(role)) {
+      return res.status(400).json({
+        error: 'Usuários restritos a uma empresa só podem ter permissão de Usuário ou Analista.'
+      })
     }
 
     // Impede que um administrador se despromova e deixe o sistema sem acesso
@@ -46,7 +53,7 @@ export default async function handler(req, res) {
     // upsert cobre o caso de a linha em profiles ainda não existir
     const { error } = await admin
       .from('profiles')
-      .upsert({ id: userId, role }, { onConflict: 'id' })
+      .upsert({ id: userId, role, empresa_id: empresaId || null }, { onConflict: 'id' })
 
     if (error) return res.status(400).json({ error: error.message })
     return res.status(200).json({ ok: true })

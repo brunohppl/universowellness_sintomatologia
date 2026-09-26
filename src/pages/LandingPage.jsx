@@ -6,7 +6,7 @@ import { listarEmpresas, listarFiliaisPorEmpresa } from '../lib/empresas'
 
 export default function LandingPage() {
   const navigate = useNavigate()
-  const { isAdmin } = useAuth()
+  const { canManageData, empresaId: escopoEmpresa, restritoAEmpresa } = useAuth()
 
   const [empresas, setEmpresas] = useState([])
   const [carregando, setCarregando] = useState(true)
@@ -19,12 +19,16 @@ export default function LandingPage() {
   useEffect(() => {
     listarEmpresas()
       .then((data) => {
-        setEmpresas(data)
-        if (data.length === 1) setEmpresaSelecionada(data[0])
+        // Usuário restrito a uma empresa só enxerga a dele.
+        const visiveis = restritoAEmpresa
+          ? data.filter((e) => e.id === escopoEmpresa)
+          : data
+        setEmpresas(visiveis)
+        if (visiveis.length === 1) setEmpresaSelecionada(visiveis[0])
       })
       .catch(() => setErro('Não foi possível carregar as empresas. Verifique a conexão.'))
       .finally(() => setCarregando(false))
-  }, [])
+  }, [restritoAEmpresa, escopoEmpresa])
 
   useEffect(() => {
     if (!empresaSelecionada) return
@@ -81,7 +85,7 @@ export default function LandingPage() {
               ) : empresas.length === 0 ? (
                 <div className="bg-white rounded-2xl shadow-card p-8 text-center">
                   <p className="text-muted">Nenhuma empresa cadastrada ainda.</p>
-                  {isAdmin && (
+                  {canManageData && (
                     <a href="/admin/clientes" className="text-sm text-teal-700 underline mt-2 inline-block">
                       Cadastrar empresas
                     </a>
@@ -120,12 +124,14 @@ export default function LandingPage() {
           {/* Step 2 — choose branch */}
           {empresaSelecionada && (
             <>
-              <button
-                onClick={handleVoltarEmpresas}
-                className="flex items-center gap-1.5 text-sm text-muted hover:text-ink mb-4 transition-colors"
-              >
-                ← Voltar
-              </button>
+              {empresas.length > 1 && (
+                <button
+                  onClick={handleVoltarEmpresas}
+                  className="flex items-center gap-1.5 text-sm text-muted hover:text-ink mb-4 transition-colors"
+                >
+                  ← Voltar
+                </button>
+              )}
 
               <div className="bg-white rounded-2xl shadow-card p-4 mb-4 flex items-center gap-3">
                 {empresaSelecionada.logo_url ? (
@@ -147,7 +153,7 @@ export default function LandingPage() {
               ) : filiais.length === 0 ? (
                 <div className="bg-white rounded-2xl shadow-card p-8 text-center">
                   <p className="text-muted text-sm">Nenhuma filial cadastrada para esta empresa.</p>
-                  {isAdmin && (
+                  {canManageData && (
                     <a href="/admin/clientes" className="text-sm text-teal-700 underline mt-2 inline-block">
                       Cadastrar filiais
                     </a>

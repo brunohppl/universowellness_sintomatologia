@@ -21,11 +21,18 @@ export default async function handler(req, res) {
       return res.status(403).json({ error: 'Apenas administradores podem convidar usuários.' })
     }
 
-    const { email, role } = req.body ?? {}
+    const { email, role, empresaId } = req.body ?? {}
     const validRoles = ['worker', 'analyst', 'manager', 'superadmin']
 
     if (!email || !validRoles.includes(role)) {
       return res.status(400).json({ error: 'E-mail e permissão válidos são obrigatórios.' })
+    }
+
+    // Um usuário restrito a uma empresa só pode ter acesso de leitura.
+    if (empresaId && !['worker', 'analyst'].includes(role)) {
+      return res.status(400).json({
+        error: 'Usuários restritos a uma empresa só podem ter permissão de Usuário ou Analista.'
+      })
     }
 
     const admin = createClient(
@@ -48,6 +55,14 @@ export default async function handler(req, res) {
     })
 
     if (error) return res.status(400).json({ error: error.message })
+
+    // O gatilho cria o perfil com o papel; o escopo é aplicado logo a seguir.
+    if (data.user?.id) {
+      await admin
+        .from('profiles')
+        .upsert({ id: data.user.id, role, empresa_id: empresaId || null }, { onConflict: 'id' })
+    }
+
     return res.status(200).json({ id: data.user?.id })
 
   } catch (err) {

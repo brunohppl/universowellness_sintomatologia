@@ -23,7 +23,7 @@ const todayISO = () => new Date().toISOString().slice(0, 10)
 const PAGE_SIZE = 12
 
 export default function AdminDashboard() {
-  const { session, signOut } = useAuth()
+  const { session, signOut, empresaId: escopoEmpresa, restritoAEmpresa } = useAuth()
   const navigate = useNavigate()
 
   const [rows, setRows] = useState([])
@@ -55,6 +55,11 @@ export default function AdminDashboard() {
 
   const [empresas, setEmpresas] = useState([])
   const [empresaFiltro, setEmpresaFiltro] = useState('todos')
+
+  // Usuário restrito a uma empresa: o filtro fica travado na empresa dele.
+  useEffect(() => {
+    if (restritoAEmpresa && escopoEmpresa) setEmpresaFiltro(escopoEmpresa)
+  }, [restritoAEmpresa, escopoEmpresa])
   const [filiaisDisponiveis, setFiliaisDisponiveis] = useState([])
   const [filialFiltro, setFilialFiltro] = useState('todas')
 
@@ -240,18 +245,27 @@ export default function AdminDashboard() {
           </div>
           <div>
             <label className="block text-xs font-semibold text-muted mb-1">Cliente</label>
-            <select
-              value={empresaFiltro}
-              onChange={(e) => setEmpresaFiltro(e.target.value)}
-              className="w-full rounded-xl border border-teal-100 px-3 py-2 text-sm outline-none focus:border-teal-500"
-            >
-              <option value="todos">Todos</option>
-              {empresas.map((e) => (
-                <option key={e.id} value={e.id}>
-                  {e.nome}
-                </option>
-              ))}
-            </select>
+            {restritoAEmpresa ? (
+              <div
+                className="w-full rounded-xl border border-teal-100 bg-teal-50/60 px-3 py-2 text-sm text-teal-700 font-medium truncate"
+                title="O seu acesso está limitado a esta empresa"
+              >
+                {empresas.find((e) => e.id === escopoEmpresa)?.nome ?? 'A sua empresa'}
+              </div>
+            ) : (
+              <select
+                value={empresaFiltro}
+                onChange={(e) => setEmpresaFiltro(e.target.value)}
+                className="w-full rounded-xl border border-teal-100 px-3 py-2 text-sm outline-none focus:border-teal-500"
+              >
+                <option value="todos">Todos</option>
+                {empresas.map((e) => (
+                  <option key={e.id} value={e.id}>
+                    {e.nome}
+                  </option>
+                ))}
+              </select>
+            )}
           </div>
           <div>
             <label className="block text-xs font-semibold text-muted mb-1">Filial</label>

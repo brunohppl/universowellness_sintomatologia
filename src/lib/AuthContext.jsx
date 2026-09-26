@@ -14,21 +14,24 @@ const AuthContext = createContext(null)
 export function AuthProvider({ children }) {
   const [session, setSession] = useState(undefined) // undefined = a carregar
   const [role, setRole]       = useState(null)
+  const [empresaId, setEmpresaId] = useState(null)   // null = acesso global
 
   const fetchRole = useCallback(async (userId) => {
-    if (!userId) { setRole(null); return }
+    if (!userId) { setRole(null); setEmpresaId(null); return }
     const { data, error } = await supabase
       .from('profiles')
-      .select('role')
+      .select('role, empresa_id')
       .eq('id', userId)
       .maybeSingle()
     if (error) {
       console.error('Erro ao carregar a permissão do usuário:', error)
       setRole('worker')
+      setEmpresaId(null)
       return
     }
     // maybeSingle devolve null (sem erro) se a linha não existir
     setRole(data?.role ?? 'worker')
+    setEmpresaId(data?.empresa_id ?? null)
   }, [])
 
   useEffect(() => {
@@ -61,6 +64,8 @@ export function AuthProvider({ children }) {
   const value = {
     session,
     role,
+    empresaId,                       // empresa à qual o usuário está restrito
+    restritoAEmpresa: empresaId != null,
     roleLevel:      ROLE_LEVEL[role] ?? 0,
     loading:        session === undefined,
     canViewResults: canViewResults(role),
